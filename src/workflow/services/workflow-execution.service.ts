@@ -12,6 +12,72 @@ export class WorkflowExecutionService {
 
   constructor(private readonly httpService: HttpService) {}
 
+  async testStep(step: WorkflowStep, context: any): Promise<any> {
+    try {
+      const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
+      const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
+      const resolvedUrl = this.templateService.resolveTemplateString(step.url, context);
+      
+      this.logger.debug(`Testing step ${step.stepName}: ${step.method} ${resolvedUrl}`);
+
+      const response = await lastValueFrom(
+        this.httpService.request({
+          method: step.method,
+          url: resolvedUrl,
+          headers: resolvedHeaders,
+          data: resolvedBody,
+        })
+      );
+
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: response.data,
+        request: {
+          method: step.method,
+          url: resolvedUrl,
+          headers: resolvedHeaders,
+          body: resolvedBody
+        }
+      };
+    } catch (error) {
+      if (error.response) {
+        return {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          headers: error.response.headers || {},
+          data: error.response.data,
+          error: error.message,
+          request: {
+            method: step.method,
+            url: error.config.url,
+            headers: error.config.headers || {},
+            body: error.config.data
+          }
+        };
+      }
+      
+      // For network or other errors without response
+      const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
+      const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
+      
+      return {
+        status: 0,
+        statusText: 'Error',
+        headers: {},
+        data: null,
+        error: error.message,
+        request: {
+          method: step.method,
+          url: step.url,
+          headers: resolvedHeaders,
+          body: resolvedBody
+        }
+      };
+    }
+  }
+
   async executeStep(step: WorkflowStep, context: any): Promise<any> {
     const maxAttempts = step.retryConfig?.maxAttempts || 1;
     const delayMs = step.retryConfig?.delayMs || 1000;

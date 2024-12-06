@@ -16,6 +16,28 @@ export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
   private readonly templateService = new TemplateService();
 
+  async testStep(workflowId: string, stepName: string): Promise<any> {
+    const workflow = await this.findOne(workflowId);
+    const step = workflow.definition.steps.find(s => s.stepName === stepName);
+    
+    if (!step) {
+      throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
+    }
+
+    const context = {
+      stepOutputs: {},
+      tenantId: workflow.tenantId,
+      tenant: workflow
+    };
+
+    try {
+      return await this.executionService.testStep(step, context);
+    } catch (error) {
+      this.logger.error(`Step test failed: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   constructor(
     private readonly executionService: WorkflowExecutionService,
     private readonly validationService: WorkflowValidationService,

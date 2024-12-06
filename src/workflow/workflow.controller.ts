@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { WorkflowService } from './workflow.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { WorkflowResponseDto } from './dto/workflow-response.dto';
+import { WorkflowStepTestResponseDto } from './dto/workflow-step-test-response.dto';
 import { WorkflowEntity } from './entities/workflow.entity';
 
 @ApiTags('Workflows')
@@ -57,6 +58,27 @@ export class WorkflowController {
       success: true,
       message: 'Workflow executed successfully',
       stepResults: {}
+    };
+  }
+
+  @Post(':id/steps/:stepName/test')
+  @ApiOperation({ summary: 'Test a specific workflow step' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Step test results',
+    type: WorkflowStepTestResponseDto
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Step not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid step configuration' })
+  async testWorkflowStep(
+    @Param('id') id: string,
+    @Param('stepName') stepName: string,
+  ): Promise<WorkflowStepTestResponseDto> {
+    const result = await this.workflowService.testStep(id, stepName);
+    return {
+      success: true,
+      stepName,
+      response: result
     };
   }
 }

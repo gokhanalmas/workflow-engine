@@ -1,132 +1,202 @@
-Aşağıda, NestJS projeniz için bir **README.md** dosyası örneği sunuyorum. Bu dosya, projenizin nasıl çalıştırılacağını ve yapılandırılacağını açıklayan temel talimatları içerir.
+# API Workflow Engine
 
-```markdown
-# Project Name
+A flexible and powerful workflow engine for orchestrating API integrations and automating business processes.
 
-> A brief description of your project.
+## Features
 
-## Requirements
+- **Workflow Management**: Create, execute and monitor API workflows
+- **Multi-tenant Architecture**: Support for multiple organizations with isolated data
+- **Provider Integration**: Pre-built integrations with common API providers
+- **Authentication & Authorization**: JWT-based auth with role-based access control
+- **Retry Mechanisms**: Configurable retry policies for API calls
+- **Template Support**: Dynamic request templating with variable substitution
+- **Step Dependencies**: Define execution order with step dependencies
+- **Swagger Documentation**: Auto-generated API documentation
 
-Before running this project, ensure you have the following installed:
+## Tech Stack
 
-- Node.js (v14 or higher)
-- NPM (v6 or higher) or Yarn
-- PostgreSQL (or your preferred database)
+- **Framework**: NestJS
+- **Database**: PostgreSQL
+- **ORM**: TypeORM
+- **Authentication**: Passport.js with JWT
+- **API Documentation**: Swagger/OpenAPI
+- **HTTP Client**: Axios
+- **Configuration**: Environment-based with dotenv
 
-## Getting Started
+## Prerequisites
 
-Follow the steps below to set up and run the project locally.
+- Node.js (v16+)
+- PostgreSQL (v13+)
+- npm or yarn
 
-### 1. Clone the Repository
+## Installation
 
 ```bash
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
-```
-
-### 2. Install Dependencies
-
-```bash
+# Install dependencies
 npm install
-```
 
-### 3. Configure the Environment
-
-Copy the `.env.example` file to `.env` and update the configuration with your environment variables:
-
-```bash
+# Set up environment variables
 cp .env.example .env
 ```
 
-- Ensure you update the database credentials and any other required configurations.
+Update the `.env` file with your configuration:
 
-### 4. Database Setup
+```env
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_NAME=workflow_engine
+DB_SSL=false
 
-Reset and set up the database:
-
-```bash
-dropdb workflow_engine
-createdb workflow_engine
+# API
+API_PORT=3000
+EXTERNAL_API_URL=http://localhost:4000
+JWT_SECRET=your-secret-key
 ```
 
-Run the migrations to create the necessary tables:
+## Database Setup
 
 ```bash
-npm run typeorm -- migration:run -d src/config/typeorm.config-migrations.ts
-```
+# Run migrations
+npm run typeorm migration:run
 
-(Optional) Run the seeders to populate initial data:
-
-```bash
+# (Optional) Seed initial data
 npm run seed
 ```
 
-### 5. Start the Server
-
-Run the development server:
+## Running the Application
 
 ```bash
+# Development
 npm run dev
-```
 
-The server should now be running at `http://localhost:3000`.
-
-### 6. Additional Commands
-
-#### Run All Migrations and Seed Data
-
-```bash
-npm run migration:run && npm run seed
-```
-
-#### Rollback Migrations
-
-```bash
-npm run typeorm -- migration:revert -d src/config/typeorm.config-migrations.ts
-```
-
-#### Run Tests
-
-```bash
-npm run test
+# Production
+npm run build
+npm run start:prod
 ```
 
 ## Project Structure
 
-A brief overview of the project's directory structure:
-
-```plaintext
+```
 src/
-├── config/               # Configuration files (e.g., TypeORM, environment variables)
-├── modules/              # Feature modules
-├── shared/               # Shared utilities and services
-├── main.ts               # Entry point for the application
-├── app.module.ts         # Root module
-└── ...
+├── auth/                 # Authentication module
+├── config/              # Configuration files
+├── migrations/          # Database migrations
+├── providers/           # API provider integrations
+├── seeds/               # Database seeders
+├── tenants/            # Multi-tenant functionality
+├── users/              # User management
+├── utils/              # Utility functions
+└── workflow/           # Core workflow engine
+    ├── dto/            # Data transfer objects
+    ├── entities/       # Database entities
+    ├── interfaces/     # TypeScript interfaces
+    └── services/       # Business logic
 ```
 
-## Troubleshooting
+## API Documentation
 
-If you encounter issues, try the following:
+Once the application is running, visit `/api` to access the Swagger documentation.
 
-1. Check your `.env` file for incorrect configuration.
-2. Ensure the database is running and accessible.
-3. Use the following commands to debug common issues:
-    - Reset and reapply migrations:
-      ```bash
-      dropdb workflow_engine
-      createdb workflow_engine
-      npm run typeorm -- migration:run -d src/config/typeorm.config-migrations.ts
-      ```
+### Key Endpoints
+
+- `POST /auth/login` - Authenticate user
+- `GET /tenants` - List all tenants
+- `POST /workflows` - Create new workflow
+- `POST /workflows/:id/execute` - Execute workflow
+- `GET /workflows/:id` - Get workflow details
+
+## Environment Configuration
+
+The application supports different environments through `.env` files:
+
+- `.env.development` - Development environment
+- `.env.production` - Production environment
+- `.env.test` - Testing environment
+
+## Workflow Definition
+
+Example workflow definition:
+
+```json
+{
+  "name": "UserSync",
+  "tenantId": "tenant-id",
+  "steps": [
+    {
+      "stepName": "GetUsers",
+      "method": "GET",
+      "url": "https://api.provider.com/users",
+      "headers": {
+        "Authorization": "Bearer {{token}}"
+      },
+      "output": {
+        "users": "$.data"
+      }
+    },
+    {
+      "stepName": "ProcessUsers",
+      "method": "POST",
+      "url": "https://api.internal.com/sync",
+      "body": {
+        "users": "{{GetUsers.users}}"
+      },
+      "dependsOn": ["GetUsers"]
+    }
+  ]
+}
+```
+
+## Error Handling
+
+The application implements comprehensive error handling:
+
+- HTTP error responses with appropriate status codes
+- Detailed error messages for debugging
+- Automatic retry for failed API calls
+- Error logging and monitoring
+
+## Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+```
+
+## Deployment
+
+1. Build the application:
+```bash
+npm run build
+```
+
+2. Set production environment variables
+3. Run database migrations
+4. Start the application:
+```bash
+npm run start:prod
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-```
+## Support
 
-### Özelleştirme
-- **Proje Adı**: Projenizin adını girin.
-- **Açıklama**: Projenizin kısa bir açıklamasını ekleyin.
-- **Komutlar ve Talimatlar**: Geliştirici gereksinimlerinize uygun olarak düzenleyin.
-  
+For support, please open an issue in the repository or contact the development team.
