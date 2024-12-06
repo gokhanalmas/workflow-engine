@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class CreateWorkflowTables1701808000000 implements MigrationInterface {
-    name = 'CreateWorkflowTables1701808000000'
+export class CreateWorkflowTables1701808000003 implements MigrationInterface {
+    name = 'CreateWorkflowTables1701808000003'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`
@@ -13,7 +13,9 @@ export class CreateWorkflowTables1701808000000 implements MigrationInterface {
                 "last_result" jsonb,
                 "created_at" TIMESTAMP NOT NULL DEFAULT now(),
                 "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
-                CONSTRAINT "PK_workflows" PRIMARY KEY ("id")
+                CONSTRAINT "PK_workflows" PRIMARY KEY ("id"),
+                CONSTRAINT "FK_workflows_tenant" FOREIGN KEY ("tenant_id") 
+                    REFERENCES "tenants"("id") ON DELETE CASCADE
             )
         `);
 

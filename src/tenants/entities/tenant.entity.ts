@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { ProviderConfig } from './provider-config.entity';
-import { WorkflowDefinitionEntity } from '../../workflow/entities/workflow-definition.entity';
+import { WorkflowEntity } from '../../workflow/entities/workflow.entity';
 
 @Entity('tenants')
 export class Tenant {
@@ -23,8 +23,8 @@ export class Tenant {
   @OneToMany(() => ProviderConfig, config => config.tenant)
   providerConfigs: ProviderConfig[];
 
-  @OneToMany(() => WorkflowDefinitionEntity, workflow => workflow.tenant)
-  workflowDefinitions: WorkflowDefinitionEntity[];
+  @OneToMany(() => WorkflowEntity, workflow => workflow.tenant)
+  workflows: WorkflowEntity[];
 
   @CreateDateColumn()
   createdAt: Date;

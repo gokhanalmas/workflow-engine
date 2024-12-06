@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TenantsService } from '../tenants/tenants.service';
-import { DerimodService } from '../providers/derimod/derimod.service';
 import { PassageService } from '../providers/passage/passage.service';
 import { CreatePassageUserDto } from '../providers/passage/dto/create-passage-user.dto';
 import * as moment from 'moment';
@@ -11,25 +10,12 @@ export class SyncService {
 
   constructor(
     private readonly tenantsService: TenantsService,
-    private readonly derimodService: DerimodService,
-    private readonly passageService: PassageService,
+    private readonly passageService: PassageService
   ) {}
 
   async syncTenantUsers(tenantId: string, passageToken: string) {
     try {
-      // Get provider config for the tenant
-      const providerConfig = await this.tenantsService.getProviderConfig(tenantId, 'derimod');
-      
-      // Initialize provider with tenant-specific config
-      this.derimodService.initialize({
-        apiUrl: providerConfig.apiUrl,
-        username: providerConfig.username,
-        password: providerConfig.password,
-        additionalConfig: providerConfig.additionalConfig,
-      });
-
-      // Get users from provider
-      const users = await this.derimodService.getUsers();
+      const users = await this.tenantsService.getUsers(tenantId);
       
       // Sync each user to Passage
       for (const user of users) {

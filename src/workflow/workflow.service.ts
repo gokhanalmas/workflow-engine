@@ -7,6 +7,10 @@ import { WorkflowExecutionService } from './services/workflow-execution.service'
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { TemplateService } from './services/template.service';
 
+interface WorkflowExecutionResult {
+  stepResults: Record<string, any>;
+}
+
 @Injectable()
 export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
@@ -40,23 +44,41 @@ export class WorkflowService {
     return this.workflowRepository.find();
   }
 
-  async findOne(id: string): Promise<WorkflowEntity> {
+  async findByNameAndTenant(name: string, tenantId: string): Promise<WorkflowEntity> {
     const workflow = await this.workflowRepository.findOne({
-      where: { id }
+      where: { 
+        name,
+        tenantId
+      }
     });
 
     if (!workflow) {
-      throw new Error(`Workflow with ID ${id} not found`);
+      throw new Error(`Workflow ${name} not found for tenant ${tenantId}`);
     }
 
     return workflow;
   }
 
-  async executeWorkflow(workflowId: string): Promise<void> {
+  async findOne(id: string): Promise<WorkflowEntity> {
+    const workflow = await this.workflowRepository.findOne({
+      where: { id }
+    });
+
+
+    if (!workflow) {
+      throw new Error(`Workflow with ID ${id} not found`);
+    }
+
+
+    return workflow;
+  }
+
+  async executeWorkflow(workflowId: string): Promise<WorkflowExecutionResult> {
     const workflow = await this.findOne(workflowId);
     const context = {
       stepOutputs: {},
-      tenantId: workflow.tenantId
+      tenantId: workflow.tenantId,
+      tenant: workflow
     };
 
     try {
@@ -85,6 +107,10 @@ export class WorkflowService {
 
       workflow.lastResult = stepResults;
       await this.workflowRepository.save(workflow);
+      
+      return { 
+        stepResults,
+      };
     } catch (error) {
       this.logger.error(`Workflow execution failed: ${error.message}`, error.stack);
       throw error;

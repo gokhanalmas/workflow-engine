@@ -35,5 +35,7 @@ export class InitialSeed {
       additionalConfig: {},
       tenant: tenant
     });
+
+    console.log('Default tenant, admin user, and provider config created');
   }
 }

@@ -29,7 +29,7 @@ export class TenantsService {
   async findById(id: string): Promise<Tenant> {
     const tenant = await this.tenantsRepository.findOne({
       where: { id },
-      relations: ['providerConfigs', 'users', 'workflowDefinitions']
+      relations: ['providerConfigs', 'users']
     });
     
     if (!tenant) {
@@ -37,6 +37,11 @@ export class TenantsService {
     }
     
     return tenant;
+  }
+
+  async getUsers(tenantId: string): Promise<any[]> {
+    const tenant = await this.findById(tenantId);
+    return tenant.users;
   }
 
   async addProviderConfig(tenantId: string, config: CreateProviderConfigDto): Promise<ProviderConfig> {

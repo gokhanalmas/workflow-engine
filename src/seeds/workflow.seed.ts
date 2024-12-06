@@ -1,17 +1,26 @@
 import { DataSource } from 'typeorm';
 import { WorkflowEntity } from '../workflow/entities/workflow.entity';
 import { HttpMethod } from '../workflow/interfaces/workflow.interface';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 export class WorkflowSeed {
   constructor(private dataSource: DataSource) {}
 
   async run() {
+    // Get the default tenant
+    const tenant = await this.dataSource.getRepository(Tenant)
+      .findOne({ where: { domain: 'default.com' } });
+
+    if (!tenant) {
+      throw new Error('Default tenant not found');
+    }
+
     const workflow = new WorkflowEntity();
     workflow.name = 'SampleAPIWorkflow';
-    workflow.tenantId = '00000000-0000-0000-0000-000000000000'; // Default tenant ID
+    workflow.tenantId = tenant.id;
     workflow.definition = {
       workflowName: 'SampleAPIWorkflow',
-      tenantId: '00000000-0000-0000-0000-000000000000',
+      tenantId: tenant.id,
       steps: [
         {
           stepName: 'GetData',
@@ -44,5 +53,6 @@ export class WorkflowSeed {
     };
 
     await this.dataSource.getRepository(WorkflowEntity).save(workflow);
+    console.log('Sample workflow created');
   }
 }

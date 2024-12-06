@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { WorkflowDefinition } from '../interfaces/workflow.interface';
+import { Tenant } from '../../tenants/entities/tenant.entity';
 
 @Entity('workflows')
 export class WorkflowEntity {
@@ -15,6 +16,10 @@ export class WorkflowEntity {
   @ApiProperty()
   @Column({ name: 'tenant_id' })
   tenantId: string;
+
+  @ManyToOne(() => Tenant, tenant => tenant.workflows)
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant;
 
   @ApiProperty()
   @Column({ type: 'jsonb' })
