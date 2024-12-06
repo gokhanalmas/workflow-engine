@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from './config/configuration';
 import { WorkflowModule } from './workflow/workflow.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { WorkflowModule } from './workflow/workflow.module';
       }),
       inject: [ConfigService],
     }),
+    AuthModule,
+    UsersModule,
     WorkflowModule,
   ],
 })
