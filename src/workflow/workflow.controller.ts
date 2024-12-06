@@ -1,9 +1,10 @@
-import { Controller, Post, Body, Get, Param, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Put, Delete, Body, Get, Param, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { WorkflowResponseDto } from './dto/workflow-response.dto';
 import { WorkflowStepTestResponseDto } from './dto/workflow-step-test-response.dto';
+import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
 import { WorkflowEntity } from './entities/workflow.entity';
 
 @ApiTags('Workflows')
@@ -80,5 +81,48 @@ export class WorkflowController {
       stepName,
       response: result
     };
+  }
+
+  @Post(':id/steps')
+  @ApiOperation({ summary: 'Add a new step to workflow' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Step added successfully',
+    type: WorkflowEntity
+  })
+  async addWorkflowStep(
+    @Param('id') id: string,
+    @Body() stepDto: UpdateWorkflowStepDto
+  ): Promise<WorkflowEntity> {
+    return this.workflowService.addWorkflowStep(id, stepDto);
+  }
+
+  @Put(':id/steps/:stepName')
+  @ApiOperation({ summary: 'Update a workflow step' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Step updated successfully',
+    type: WorkflowEntity
+  })
+  async updateWorkflowStep(
+    @Param('id') id: string,
+    @Param('stepName') stepName: string,
+    @Body() updateDto: UpdateWorkflowStepDto
+  ): Promise<WorkflowEntity> {
+    return this.workflowService.updateWorkflowStep(id, stepName, updateDto);
+  }
+
+  @Delete(':id/steps/:stepName')
+  @ApiOperation({ summary: 'Delete a workflow step' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Step deleted successfully',
+    type: WorkflowEntity
+  })
+  async deleteWorkflowStep(
+    @Param('id') id: string,
+    @Param('stepName') stepName: string
+  ): Promise<WorkflowEntity> {
+    return this.workflowService.deleteWorkflowStep(id, stepName);
   }
 }

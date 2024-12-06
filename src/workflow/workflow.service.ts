@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowEntity } from './entities/workflow.entity';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
+import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
 import { WorkflowExecutionService } from './services/workflow-execution.service';
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { TemplateService } from './services/template.service';
@@ -15,6 +16,59 @@ interface WorkflowExecutionResult {
 export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
   private readonly templateService = new TemplateService();
+
+  async updateWorkflowStep(workflowId: string, stepName: string, updateDto: UpdateWorkflowStepDto): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(workflowId);
+    const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
+    
+    if (stepIndex === -1) {
+      throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
+    }
+
+    // Validate the updated step
+    this.validationService.validateWorkflowSteps([updateDto]);
+
+    // Update the step
+    workflow.definition.steps[stepIndex] = {
+      ...workflow.definition.steps[stepIndex],
+      ...updateDto
+    };
+
+    return this.workflowRepository.save(workflow);
+  }
+
+  async deleteWorkflowStep(workflowId: string, stepName: string): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(workflowId);
+    const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
+    
+    if (stepIndex === -1) {
+      throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
+    }
+
+    // Remove step
+    workflow.definition.steps.splice(stepIndex, 1);
+
+    // Remove this step from any dependsOn arrays
+    workflow.definition.steps.forEach(step => {
+      if (step.dependsOn) {
+        step.dependsOn = step.dependsOn.filter(dep => dep !== stepName);
+      }
+    });
+
+    return this.workflowRepository.save(workflow);
+  }
+
+  async addWorkflowStep(workflowId: string, newStep: UpdateWorkflowStepDto): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(workflowId);
+    
+    // Validate the new step
+    this.validationService.validateWorkflowSteps([newStep]);
+
+    // Add the new step
+    workflow.definition.steps.push(newStep);
+
+    return this.workflowRepository.save(workflow);
+  }
 
   async testStep(workflowId: string, stepName: string): Promise<any> {
     const workflow = await this.findOne(workflowId);
