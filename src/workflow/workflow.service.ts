@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { WorkflowEntity } from './entities/workflow.entity';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
+import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { WorkflowExecutionService } from './services/workflow-execution.service';
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { TemplateService } from './services/template.service';
@@ -90,6 +91,32 @@ export class WorkflowService {
       this.logger.error(`Step test failed: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  async patchWorkflow(id: string, updateDto: UpdateWorkflowDto): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(id);
+    
+    // Update basic properties if provided
+    if (updateDto.name) {
+      workflow.name = updateDto.name;
+    }
+    
+    // Update definition if provided
+    if (updateDto.definition) {
+      // Validate any new steps
+      if (updateDto.definition.steps) {
+        this.validationService.validateWorkflowSteps(updateDto.definition.steps);
+      }
+      
+      workflow.definition = {
+        ...workflow.definition,
+        ...updateDto.definition,
+        // Ensure tenantId remains unchanged
+        tenantId: workflow.tenantId
+      };
+    }
+    
+    return this.workflowRepository.save(workflow);
   }
 
   constructor(

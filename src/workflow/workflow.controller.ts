@@ -1,7 +1,8 @@
-import { Controller, Post, Put, Delete, Body, Get, Param, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Put, Patch, Delete, Body, Get, Param, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
+import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { WorkflowResponseDto } from './dto/workflow-response.dto';
 import { WorkflowStepTestResponseDto } from './dto/workflow-step-test-response.dto';
 import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
@@ -124,5 +125,19 @@ export class WorkflowController {
     @Param('stepName') stepName: string
   ): Promise<WorkflowEntity> {
     return this.workflowService.deleteWorkflowStep(id, stepName);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Partially update a workflow' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Workflow updated successfully',
+    type: WorkflowEntity
+  })
+  async patchWorkflow(
+    @Param('id') id: string,
+    @Body() updateDto: UpdateWorkflowDto
+  ): Promise<WorkflowEntity> {
+    return this.workflowService.patchWorkflow(id, updateDto);
   }
 }

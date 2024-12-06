@@ -5,6 +5,22 @@ import { WorkflowStep } from '../interfaces/workflow.interface';
 import { delay } from '../../utils/promise.utils';
 import { TemplateService } from './template.service';
 
+type StringRecord = Record<string, string>;
+
+interface StepTestResponse {
+  status: number;
+  statusText: string;
+  headers: StringRecord;
+  data: any;
+  error?: string;
+  request: {
+    method: string;
+    url: string;
+    headers: StringRecord;
+    body: any;
+  };
+}
+
 @Injectable()
 export class WorkflowExecutionService {
   private readonly logger = new Logger(WorkflowExecutionService.name);
@@ -12,7 +28,7 @@ export class WorkflowExecutionService {
 
   constructor(private readonly httpService: HttpService) {}
 
-  async testStep(step: WorkflowStep, context: any): Promise<any> {
+  async testStep(step: WorkflowStep, context: any): Promise<StepTestResponse> {
     try {
       const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
       const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
@@ -32,7 +48,10 @@ export class WorkflowExecutionService {
       return {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers,
+        headers: Object.entries(response.headers).reduce((acc, [key, value]) => {
+          acc[key] = String(value);
+          return acc;
+        }, {} as StringRecord),
         data: response.data,
         request: {
           method: step.method,
@@ -46,7 +65,10 @@ export class WorkflowExecutionService {
         return {
           status: error.response.status,
           statusText: error.response.statusText,
-          headers: error.response.headers || {},
+          headers: Object.entries(error.response.headers || {}).reduce((acc, [key, value]) => {
+            acc[key] = String(value);
+            return acc;
+          }, {} as StringRecord),
           data: error.response.data,
           error: error.message,
           request: {
