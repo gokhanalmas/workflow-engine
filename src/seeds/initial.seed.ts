@@ -8,34 +8,50 @@ export class InitialSeed {
   constructor(private dataSource: DataSource) {}
 
   async run() {
-    // Create default tenant
-    const tenant = await this.dataSource.getRepository(Tenant).save({
-      name: 'Default Tenant',
-      domain: 'default.com',
-      passageApiKey: 'default_passage_key'
-    });
+    try {
+      // Create default tenant
+      const tenantRepository = this.dataSource.getRepository(Tenant);
+      const tenant = tenantRepository.create({
+        name: 'Default Tenant',
+        domain: 'default.com',
+        passageApiKey: 'default_passage_key'
+      });
 
-    // Create admin user
-    const hashedPassword = await PasswordService.hash('Admin123!');
-    await this.dataSource.getRepository(User).save({
-      email: 'admin@example.com',
-      firstName: 'Admin',
-      lastName: 'User',
-      password: hashedPassword,
-      role: 'admin',
-      tenant: tenant
-    });
+      const savedTenant = await tenantRepository.save(tenant);
+      console.log('Default tenant created');
 
-    // Create sample provider config
-    await this.dataSource.getRepository(ProviderConfig).save({
-      providerName: 'sample_provider',
-      apiUrl: 'https://api.sample-provider.com',
-      username: 'sample_user',
-      password: 'sample_pass',
-      additionalConfig: {},
-      tenant: tenant
-    });
+      // Create admin user
+      const userRepository = this.dataSource.getRepository(User);
+      const hashedPassword = await PasswordService.hash('Admin123!');
+      const user = userRepository.create({
+        email: 'admin@example.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        password: hashedPassword,
+        role: 'admin',
+        tenant: savedTenant
+      });
 
-    console.log('Default tenant, admin user, and provider config created');
+      await userRepository.save(user);
+      console.log('Admin user created');
+
+      // Create sample provider config
+      const providerConfigRepository = this.dataSource.getRepository(ProviderConfig);
+      const providerConfig = providerConfigRepository.create({
+        providerName: 'sample_provider',
+        apiUrl: 'https://api.sample-provider.com',
+        username: 'sample_user',
+        password: 'sample_pass',
+        additionalConfig: {},
+        tenant: savedTenant
+      });
+
+      await providerConfigRepository.save(providerConfig);
+      console.log('Sample provider config created');
+
+    } catch (error) {
+      console.error('Error in initial seed:', error);
+      throw error;
+    }
   }
 }

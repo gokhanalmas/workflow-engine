@@ -1,26 +1,27 @@
 import { DataSource } from 'typeorm';
 import { WorkflowEntity } from '../workflow/entities/workflow.entity';
 import { HttpMethod } from '../workflow/interfaces/workflow.interface';
-import { Tenant } from '../tenants/entities/tenant.entity';
 
 export class WorkflowSeed {
   constructor(private dataSource: DataSource) {}
 
   async run() {
-    // Get the default tenant
-    const tenant = await this.dataSource.getRepository(Tenant)
-      .findOne({ where: { domain: 'default.com' } });
+    const tenantRepository = this.dataSource.getRepository('Tenant');
+    const defaultTenant = await tenantRepository.findOne({
+      where: { name: 'Default Tenant' }
+    });
 
-    if (!tenant) {
-      throw new Error('Default tenant not found');
+    if (!defaultTenant) {
+      console.log('Default tenant not found, skipping workflow seed');
+      return;
     }
 
     const workflow = new WorkflowEntity();
     workflow.name = 'SampleAPIWorkflow';
-    workflow.tenantId = tenant.id;
+    workflow.tenantId = defaultTenant.id;
     workflow.definition = {
       workflowName: 'SampleAPIWorkflow',
-      tenantId: tenant.id,
+      tenantId: defaultTenant.id,
       steps: [
         {
           stepName: 'GetData',
