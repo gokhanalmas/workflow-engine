@@ -113,6 +113,21 @@ export class WorkflowController {
     return this.workflowService.updateWorkflowStep(id, stepName, updateDto);
   }
 
+  @Patch(':id/steps/:stepName')
+  @ApiOperation({ summary: 'Partially update a workflow step' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Step updated successfully',
+    type: WorkflowEntity
+  })
+  async patchWorkflowStep(
+    @Param('id') id: string,
+    @Param('stepName') stepName: string,
+    @Body() updateDto: Partial<UpdateWorkflowStepDto>
+  ): Promise<WorkflowEntity> {
+    return this.workflowService.patchWorkflowStep(id, stepName, updateDto);
+  }
+
   @Delete(':id/steps/:stepName')
   @ApiOperation({ summary: 'Delete a workflow step' })
   @ApiResponse({

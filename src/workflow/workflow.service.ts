@@ -38,6 +38,29 @@ export class WorkflowService {
     return this.workflowRepository.save(workflow);
   }
 
+  async patchWorkflowStep(workflowId: string, stepName: string, updateDto: Partial<UpdateWorkflowStepDto>): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(workflowId);
+    const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
+    
+    if (stepIndex === -1) {
+      throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
+    }
+
+    // Merge the existing step with the partial updates
+    const updatedStep = {
+      ...workflow.definition.steps[stepIndex],
+      ...updateDto
+    };
+
+    // Validate the merged step
+    this.validationService.validateWorkflowSteps([updatedStep]);
+
+    // Update the step
+    workflow.definition.steps[stepIndex] = updatedStep;
+
+    return this.workflowRepository.save(workflow);
+  }
+
   async deleteWorkflowStep(workflowId: string, stepName: string): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
     const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
