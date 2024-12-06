@@ -5,6 +5,7 @@ import configuration from './config/configuration';
 import { WorkflowModule } from './workflow/workflow.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { UsersModule } from './users/users.module';
     }),
     AuthModule,
     UsersModule,
+    TenantsModule,
     WorkflowModule,
   ],
 })
