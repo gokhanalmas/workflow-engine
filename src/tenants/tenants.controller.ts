@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Delete, Patch } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { CreateProviderConfigDto } from './dto/create-provider-config.dto';
@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Tenant } from './entities/tenant.entity';
 import { ProviderConfig } from './entities/provider-config.entity';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
 
 @ApiTags('Tenants')
 @ApiBearerAuth('JWT-auth')
@@ -23,6 +24,31 @@ export class TenantsController {
   })
   create(@Body() createTenantDto: CreateTenantDto) {
     return this.tenantsService.create(createTenantDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a tenant' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant deleted successfully'
+  })
+  @ApiResponse({ status: 404, description: 'Tenant not found' })
+  async remove(@Param('id') id: string): Promise<void> {
+    return this.tenantsService.remove(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a tenant' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant updated successfully',
+    type: Tenant
+  })
+  async update(
+    @Param('id') id: string,
+    @Body() updateTenantDto: UpdateTenantDto
+  ): Promise<Tenant> {
+    return this.tenantsService.update(id, updateTenantDto);
   }
 
   @Get()

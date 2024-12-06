@@ -5,14 +5,22 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
-  
-  app.useGlobalPipes(new ValidationPipe());
-  
-  const config = new DocumentBuilder()
-    .setTitle('Workflow Engine API')
-    .setDescription(`
+    const app = await NestFactory.create(AppModule);
+    const configService = app.get(ConfigService);
+
+    // Enable CORS
+    app.enableCors({
+        origin: ['http://localhost:5173'], // Frontend development server
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+
+    app.useGlobalPipes(new ValidationPipe());
+
+    const config = new DocumentBuilder()
+        .setTitle('Workflow Engine API')
+        .setDescription(`
       API for managing workflow definitions and executions.
       
       This API allows you to:
@@ -21,28 +29,28 @@ async function bootstrap() {
       - Configure provider integrations
       - Monitor workflow executions
     `)
-    .setVersion('1.0')
-    .addTag('Auth', 'Authentication endpoints')
-    .addTag('Tenants', 'Tenant management endpoints')
-    .addTag('Workflows', 'Workflow management endpoints')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token',
-        in: 'header',
-      },
-      'JWT-auth',
-    )
-    .build();
-    
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+        .setVersion('1.0')
+        .addTag('Auth', 'Authentication endpoints')
+        .addTag('Tenants', 'Tenant management endpoints')
+        .addTag('Workflows', 'Workflow management endpoints')
+        .addBearerAuth(
+            {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                name: 'JWT',
+                description: 'Enter JWT token',
+                in: 'header',
+            },
+            'JWT-auth',
+        )
+        .build();
 
-  const port = configService.get<number>('api.port');
-  await app.listen(port);
-  console.log(`Application is running on port ${port}`);
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+
+    const port = configService.get<number>('api.port');
+    await app.listen(port);
+    console.log(`Application is running on port ${port}`);
 }
 bootstrap();

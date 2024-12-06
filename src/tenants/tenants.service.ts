@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Tenant } from './entities/tenant.entity';
 import { ProviderConfig } from './entities/provider-config.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { CreateProviderConfigDto } from './dto/create-provider-config.dto';
 
 @Injectable()
@@ -18,6 +19,22 @@ export class TenantsService {
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
     const tenant = this.tenantsRepository.create(createTenantDto);
     return this.tenantsRepository.save(tenant);
+  }
+
+  async update(id: string, updateTenantDto: UpdateTenantDto): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    
+    const updatedTenant = {
+      ...tenant,
+      ...updateTenantDto
+    };
+    
+    return this.tenantsRepository.save(updatedTenant);
+  }
+
+  async remove(id: string): Promise<void> {
+    const tenant = await this.findById(id);
+    await this.tenantsRepository.remove(tenant);
   }
 
   async findAll(): Promise<Tenant[]> {

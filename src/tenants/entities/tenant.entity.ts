@@ -1,5 +1,12 @@
 // In tenant.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { ProviderConfig } from './provider-config.entity';
 import { WorkflowEntity } from '../../workflow/entities/workflow.entity';
@@ -19,16 +26,19 @@ export class Tenant {
   @Column()
   passageApiKey: string;
 
-  @OneToMany(() => User, user => user.tenant)
+  @OneToMany(() => User, (user) => user.tenant)
   users: User[];
 
-  @OneToMany(() => ProviderConfig, config => config.tenant)
+  @OneToMany(() => ProviderConfig, (config) => config.tenant)
   providerConfigs: ProviderConfig[];
 
-  @OneToMany(() => WorkflowEntity, workflow => workflow.tenant)
+  @OneToMany(() => WorkflowEntity, (workflow) => workflow.tenant)
   workflows: WorkflowEntity[];
 
-  @OneToMany(() => WorkflowDefinitionEntity, workflowDefinition => workflowDefinition.tenant)
+  @OneToMany(
+    () => WorkflowDefinitionEntity,
+    (workflowDefinition) => workflowDefinition.tenant
+  )
   workflowDefinitions: WorkflowDefinitionEntity[];
 
   @CreateDateColumn()
