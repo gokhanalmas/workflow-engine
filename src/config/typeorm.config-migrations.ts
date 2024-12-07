@@ -1,3 +1,5 @@
+// src/config/typeorm.config-migrations.ts
+
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import { User } from '../users/entities/user.entity';
@@ -6,6 +8,8 @@ import { ProviderConfig } from '../tenants/entities/provider-config.entity';
 import { WorkflowDefinitionEntity } from '../workflow/entities/workflow-definition.entity';
 import { WorkflowExecution } from '../workflow/entities/workflow-execution.entity';
 import { WorkflowEntity } from '../workflow/entities/workflow.entity';
+import { WorkflowExecutionLog } from '../workflow/entities/workflow-execution-log.entity';
+import { WorkflowStepLog } from '../workflow/entities/workflow-step-log.entity';
 
 config();
 
@@ -22,7 +26,9 @@ const dataSource = new DataSource({
     ProviderConfig,
     WorkflowDefinitionEntity,
     WorkflowExecution,
-    WorkflowEntity
+    WorkflowEntity,
+    WorkflowExecutionLog,
+    WorkflowStepLog
   ],
   migrations: ['src/migrations/*.ts'],
   ssl: process.env.DB_SSL === 'true' ? {

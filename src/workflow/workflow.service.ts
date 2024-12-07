@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {BadRequestException, Injectable, Logger, NotFoundException} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowEntity } from './entities/workflow.entity';
@@ -8,6 +8,9 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { WorkflowExecutionService } from './services/workflow-execution.service';
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { TemplateService } from './services/template.service';
+import { WorkflowExecutionLog} from "./entities/workflow-execution-log.entity";
+import { ExecutionStatus } from '../enums/execution-status.enum';
+import {WorkflowStepLog} from "./entities/workflow-step-log.entity";
 
 interface WorkflowExecutionResult {
   stepResults: Record<string, any>;
@@ -16,7 +19,19 @@ interface WorkflowExecutionResult {
 @Injectable()
 export class WorkflowService {
   private readonly logger = new Logger(WorkflowService.name);
-  private readonly templateService = new TemplateService();
+  // private readonly templateService = new TemplateService();
+
+  constructor(
+      @InjectRepository(WorkflowEntity)
+      private workflowRepository: Repository<WorkflowEntity>,
+      @InjectRepository(WorkflowExecutionLog)
+      private executionLogRepository: Repository<WorkflowExecutionLog>,
+      @InjectRepository(WorkflowStepLog)
+      private stepLogRepository: Repository<WorkflowStepLog>,
+      private readonly executionService: WorkflowExecutionService,
+      private readonly validationService: WorkflowValidationService,
+      private readonly templateService: TemplateService,
+  ) {}
 
   async updateWorkflowStep(workflowId: string, stepName: string, updateDto: UpdateWorkflowStepDto): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
@@ -173,13 +188,6 @@ export class WorkflowService {
     return this.workflowRepository.save(updatedWorkflow);
   }
 
-  constructor(
-    private readonly executionService: WorkflowExecutionService,
-    private readonly validationService: WorkflowValidationService,
-    @InjectRepository(WorkflowEntity)
-    private workflowRepository: Repository<WorkflowEntity>
-  ) {}
-
   async createWorkflow(createWorkflowDto: CreateWorkflowDto): Promise<WorkflowEntity> {
     // Validate workflow steps
     this.validationService.validateWorkflowSteps(createWorkflowDto.steps);
@@ -230,47 +238,155 @@ export class WorkflowService {
     return workflow;
   }
 
-  async executeWorkflow(workflowId: string): Promise<WorkflowExecutionResult> {
+  async getExecutions(workflowId: string): Promise<WorkflowExecutionLog[]> {
     const workflow = await this.findOne(workflowId);
-    const context = {
-      stepOutputs: {},
+    return this.executionLogRepository.find({
+      where: { workflowId: workflow.id },
+      relations: ['stepLogs'],
+      order: { startedAt: 'DESC' },
+    });
+  }
+
+  async getExecution(workflowId: string, executionId: string): Promise<WorkflowExecutionLog> {
+    const workflow = await this.findOne(workflowId);
+
+    const execution = await this.executionLogRepository.findOne({
+      where: {
+        id: executionId,
+        workflowId: workflow.id,
+      },
+      relations: ['stepLogs'],
+    });
+
+    if (!execution) {
+      throw new NotFoundException(
+          `Execution ${executionId} not found for workflow ${workflowId}`,
+      );
+    }
+
+    return execution;
+  }
+
+
+  async executeWorkflow(workflowId: string): Promise<WorkflowExecutionLog> {
+    const workflow = await this.findOne(workflowId);
+
+    // Yeni yürütme kaydı oluştur
+    const executionLog = this.executionLogRepository.create({
+      workflowId: workflow.id,
       tenantId: workflow.tenantId,
-      tenant: workflow
-    };
+      status: ExecutionStatus.RUNNING,
+    });
+
+    await this.executionLogRepository.save(executionLog);
 
     try {
+      const startTime = Date.now();
+      const context = {
+        stepOutputs: {},
+        tenantId: workflow.tenantId,
+        tenant: workflow,
+      };
+
       const stepResults = {};
       const executedSteps = new Set<string>();
 
+      // Adımları sırayla çalıştır
       for (const step of workflow.definition.steps) {
+        // Bağımlılıkları kontrol et
         if (step.dependsOn) {
           for (const dependency of step.dependsOn) {
             if (!executedSteps.has(dependency)) {
-              throw new Error(`Step ${step.stepName} depends on ${dependency} which hasn't been executed yet`);
+              throw new Error(
+                  `Step ${step.stepName} depends on ${dependency} which hasn't been executed yet`,
+              );
             }
           }
         }
 
-        const result = await this.executionService.executeStep(step, context);
-        stepResults[step.stepName] = result;
-        executedSteps.add(step.stepName);
+        // Adım logu oluştur
+        const stepLog = this.stepLogRepository.create({
+          executionId: executionLog.id,
+          stepName: step.stepName,
+          status: ExecutionStatus.RUNNING,
+        });
+        await this.stepLogRepository.save(stepLog);
 
-        if (step.output) {
-          Object.entries(step.output).forEach(([key, jsonPath]) => {
-            context.stepOutputs[`${step.stepName}.${key}`] = this.templateService.extractValue(result, jsonPath);
-          });
+        try {
+          const stepStartTime = Date.now();
+          const result = await this.executionService.executeStep(step, context);
+
+          // Başarıyla tamamlanan adımı logla
+          stepLog.status = ExecutionStatus.COMPLETED;
+          stepLog.completedAt = new Date();
+          stepLog.durationMs = Date.now() - stepStartTime;
+          stepLog.response = result;
+          await this.stepLogRepository.save(stepLog);
+
+          stepResults[step.stepName] = result;
+          executedSteps.add(step.stepName);
+
+          // Eğer çıktı tanımlıysa context'e ekle
+          if (step.output) {
+            Object.entries(step.output).forEach(([key, jsonPath]) => {
+              context.stepOutputs[`${step.stepName}.${key}`] =
+                  this.templateService.extractValue(result, jsonPath);
+            });
+          }
+        } catch (error) {
+          // Hata durumunda adımı logla
+          stepLog.status = ExecutionStatus.FAILED;
+          stepLog.completedAt = new Date();
+          stepLog.error = error.message;
+          await this.stepLogRepository.save(stepLog);
+          throw error;
         }
       }
 
+      // Başarılı yürütme logunu güncelle
+      executionLog.status = ExecutionStatus.COMPLETED;
+      executionLog.completedAt = new Date();
+      executionLog.totalDurationMs = Date.now() - startTime;
+      await this.executionLogRepository.save(executionLog);
+
+      // Workflow son sonucu güncelle
       workflow.lastResult = stepResults;
       await this.workflowRepository.save(workflow);
-      
-      return { 
-        stepResults,
-      };
+
+      return executionLog;
     } catch (error) {
+      // Hata durumunda yürütme logunu güncelle
+      executionLog.status = ExecutionStatus.FAILED;
+      executionLog.completedAt = new Date();
+      executionLog.error = error.message;
+      await this.executionLogRepository.save(executionLog);
+
       this.logger.error(`Workflow execution failed: ${error.message}`, error.stack);
       throw error;
     }
+  }
+
+  /**
+   * Yeni metod: Başarısız olan bir yürütmeyi tekrar çalıştırır.
+   */
+  async retryExecution(workflowId: string, executionId: string): Promise<WorkflowExecutionLog> {
+    const workflow = await this.findOne(workflowId);
+    const execution = await this.getExecution(workflowId, executionId);
+
+    if (execution.status !== ExecutionStatus.FAILED) {
+      throw new BadRequestException('Only failed executions can be retried');
+    }
+
+    // Yeni bir yürütme kaydı oluştur
+    const newExecution = this.executionLogRepository.create({
+      workflowId: workflow.id,
+      tenantId: workflow.tenantId,
+      status: ExecutionStatus.RUNNING,
+    });
+
+    await this.executionLogRepository.save(newExecution);
+
+    // Workflow'u tekrar çalıştır
+    return this.executeWorkflow(workflow.id);
   }
 }

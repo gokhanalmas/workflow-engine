@@ -7,6 +7,8 @@ import { WorkflowResponseDto } from './dto/workflow-response.dto';
 import { WorkflowStepTestResponseDto } from './dto/workflow-step-test-response.dto';
 import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
 import { WorkflowEntity } from './entities/workflow.entity';
+import { WorkflowExecutionLogDto } from "./dto/workflow-execution.dto";
+import { WorkflowExecutionLog } from "./entities/workflow-execution-log.entity";
 
 @ApiTags('Workflows')
 @ApiBearerAuth()
@@ -45,22 +47,6 @@ export class WorkflowController {
   })
   async getWorkflow(@Param('id') id: string): Promise<WorkflowEntity> {
     return this.workflowService.findOne(id);
-  }
-
-  @Post(':id/execute')
-  @ApiOperation({ summary: 'Execute a workflow' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Workflow execution result',
-    type: WorkflowResponseDto
-  })
-  async executeWorkflow(@Param('id') id: string): Promise<WorkflowResponseDto> {
-    await this.workflowService.executeWorkflow(id);
-    return {
-      success: true,
-      message: 'Workflow executed successfully',
-      stepResults: {}
-    };
   }
 
   @Post(':id/steps/:stepName/test')
@@ -192,6 +178,69 @@ export class WorkflowController {
   })
   async deleteWorkflow(@Param('id') id: string): Promise<void> {
     await this.workflowService.deleteWorkflow(id);
+  }
+
+
+  @Get(':id/executions')
+  @ApiOperation({ summary: 'Get workflow execution history' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of workflow executions',
+    type: [WorkflowExecutionLogDto]
+  })
+  async getExecutions(
+      @Param('id') id: string
+  ): Promise<WorkflowExecutionLog[]> {
+    return this.workflowService.getExecutions(id);
+  }
+
+  @Get(':id/executions/:executionId')
+  @ApiOperation({ summary: 'Get execution details' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Execution details',
+    type: WorkflowExecutionLogDto
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Execution not found'
+  })
+  async getExecution(
+      @Param('id') id: string,
+      @Param('executionId') executionId: string
+  ): Promise<WorkflowExecutionLog> {
+    return this.workflowService.getExecution(id, executionId);
+  }
+
+  @Post(':id/execute')
+  @ApiOperation({ summary: 'Execute workflow' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Workflow execution started',
+    type: WorkflowExecutionLogDto
+  })
+  async executeWorkflow(
+      @Param('id') id: string
+  ): Promise<WorkflowExecutionLog> {
+    return this.workflowService.executeWorkflow(id);
+  }
+
+  @Post(':id/executions/:executionId/retry')
+  @ApiOperation({ summary: 'Retry failed execution' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Execution retry started',
+    type: WorkflowExecutionLogDto
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Only failed executions can be retried'
+  })
+  async retryExecution(
+      @Param('id') id: string,
+      @Param('executionId') executionId: string
+  ): Promise<WorkflowExecutionLog> {
+    return this.workflowService.retryExecution(id, executionId);
   }
 
 }

@@ -1,7 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+// src/workflow/entities/workflow.entity.ts
+
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+  JoinColumn
+} from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { WorkflowDefinition } from '../interfaces/workflow.interface';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { WorkflowExecutionLog } from './workflow-execution-log.entity';
 
 @Entity('workflows')
 export class WorkflowEntity {
@@ -28,6 +40,9 @@ export class WorkflowEntity {
   @ApiProperty({ required: false })
   @Column({ name: 'last_result', type: 'jsonb', nullable: true })
   lastResult?: Record<string, any>;
+
+  @OneToMany(() => WorkflowExecutionLog, log => log.workflow)
+  executionLogs: WorkflowExecutionLog[];
 
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at' })
