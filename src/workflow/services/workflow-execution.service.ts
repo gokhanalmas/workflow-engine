@@ -29,20 +29,30 @@ export class WorkflowExecutionService {
   constructor(private readonly httpService: HttpService) {}
 
   async testStep(step: WorkflowStep, context: any): Promise<StepTestResponse> {
+    // Create request configuration outside try block for access in catch
+    const requestConfig: any = {
+      method: step.method,
+      url: this.templateService.resolveTemplateString(step.url, context),
+      headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
+    };
+
+    // Only add body for non-GET/HEAD requests
+    if (!['GET', 'HEAD'].includes(step.method)) {
+      const resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
+      if (resolvedBody && Object.keys(resolvedBody).length > 0) {
+        requestConfig.data = resolvedBody;
+      }
+    }
+
     try {
-      const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
-      const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
-      const resolvedUrl = this.templateService.resolveTemplateString(step.url, context);
-      
-      this.logger.debug(`Testing step ${step.stepName}: ${step.method} ${resolvedUrl}`);
+      this.logger.debug(`Testing step ${step.stepName}:`, {
+        method: requestConfig.method,
+        url: requestConfig.url,
+        headers: requestConfig.headers
+      });
 
       const response = await lastValueFrom(
-        this.httpService.request({
-          method: step.method,
-          url: resolvedUrl,
-          headers: resolvedHeaders,
-          data: resolvedBody,
-        })
+          this.httpService.request(requestConfig)
       );
 
       return {
@@ -55,9 +65,9 @@ export class WorkflowExecutionService {
         data: response.data,
         request: {
           method: step.method,
-          url: resolvedUrl,
-          headers: resolvedHeaders,
-          body: resolvedBody
+          url: requestConfig.url,
+          headers: requestConfig.headers,
+          body: requestConfig.data
         }
       };
     } catch (error) {
@@ -73,17 +83,13 @@ export class WorkflowExecutionService {
           error: error.message,
           request: {
             method: step.method,
-            url: error.config.url,
-            headers: error.config.headers || {},
-            body: error.config.data
+            url: requestConfig.url,
+            headers: requestConfig.headers,
+            body: requestConfig.data
           }
         };
       }
-      
-      // For network or other errors without response
-      const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
-      const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
-      
+
       return {
         status: 0,
         statusText: 'Error',
@@ -92,9 +98,9 @@ export class WorkflowExecutionService {
         error: error.message,
         request: {
           method: step.method,
-          url: step.url,
-          headers: resolvedHeaders,
-          body: resolvedBody
+          url: requestConfig.url,
+          headers: requestConfig.headers,
+          body: requestConfig.data
         }
       };
     }
@@ -106,20 +112,45 @@ export class WorkflowExecutionService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
-        const resolvedBody = this.templateService.resolveTemplateValues(step.body || {}, context);
-        const resolvedUrl = this.templateService.resolveTemplateString(step.url, context);
+        // Create request configuration
+        const requestConfig: any = {
+          method: step.method,
+          url: this.templateService.resolveTemplateString(step.url, context),
+          headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
+        };
 
-        this.logger.debug(`Executing step ${step.stepName}: ${step.method} ${resolvedUrl}`);
+        // Only add body for non-GET/HEAD requests
+        if (!['GET', 'HEAD'].includes(step.method)) {
+          const resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
+          if (resolvedBody && Object.keys(resolvedBody).length > 0) {
+            requestConfig.data = resolvedBody;
+          }
+        }
+
+        this.logger.debug(`Executing step ${step.stepName}:`, {
+          method: requestConfig.method,
+          url: requestConfig.url,
+          headers: requestConfig.headers
+        });
 
         const response = await lastValueFrom(
-          this.httpService.request({
-            method: step.method,
-            url: resolvedUrl,
-            headers: resolvedHeaders,
-            data: resolvedBody,
-          })
+            this.httpService.request(requestConfig)
         );
+
+        // Store step output in context if defined
+        if (step.output && response.data) {
+          if (!context.stepOutputs) {
+            context.stepOutputs = {};
+          }
+
+          context.stepOutputs[step.stepName] = {};
+          for (const [key, path] of Object.entries(step.output)) {
+            const value = this.templateService.extractValue(response.data, path);
+            context.stepOutputs[step.stepName][key] = value;
+          }
+
+          this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs[step.stepName]);
+        }
 
         return response.data;
       } catch (error) {
@@ -127,7 +158,7 @@ export class WorkflowExecutionService {
           throw error;
         }
         this.logger.warn(
-          `Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`
+            `Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`
         );
         await delay(delayMs);
       }
