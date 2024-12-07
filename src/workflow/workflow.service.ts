@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowEntity } from './entities/workflow.entity';
@@ -142,6 +142,13 @@ export class WorkflowService {
     return this.workflowRepository.save(workflow);
   }
 
+  async deleteWorkflow(id: string): Promise<void> {
+    const workflow = await this.findOne(id);
+    if (!workflow) {
+      throw new NotFoundException(`Workflow with ID ${id} not found`);
+    }
+    await this.workflowRepository.remove(workflow);
+  }
   constructor(
     private readonly executionService: WorkflowExecutionService,
     private readonly validationService: WorkflowValidationService,

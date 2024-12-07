@@ -155,4 +155,19 @@ export class WorkflowController {
   ): Promise<WorkflowEntity> {
     return this.workflowService.patchWorkflow(id, updateDto);
   }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a workflow' })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Workflow deleted successfully'
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Workflow not found'
+  })
+  async deleteWorkflow(@Param('id') id: string): Promise<void> {
+    await this.workflowService.deleteWorkflow(id);
+  }
+
 }
