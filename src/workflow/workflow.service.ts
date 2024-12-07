@@ -240,13 +240,20 @@ export class WorkflowService {
 
   async getExecutions(workflowId: string): Promise<WorkflowExecutionLog[]> {
     const workflow = await this.findOne(workflowId);
+
+    if (!workflow) {
+      throw new NotFoundException(`Workflow with ID ${workflowId} not found`);
+    }
+
     return this.executionLogRepository.find({
-      where: { workflowId: workflow.id },
+      where: {
+        workflowId: workflow.id,
+        tenantId: workflow.tenantId
+      },
       relations: ['stepLogs'],
       order: { startedAt: 'DESC' },
     });
   }
-
   async getExecution(workflowId: string, executionId: string): Promise<WorkflowExecutionLog> {
     const workflow = await this.findOne(workflowId);
 
