@@ -7,6 +7,9 @@ import { WorkflowController } from './workflow.controller';
 import { WorkflowExecutionService } from './services/workflow-execution.service';
 import { WorkflowValidationService } from './services/workflow-validation.service';
 import { TemplateService } from './services/template.service';
+import { ApiLoggerService } from '../services/api-logger.service';
+import { HttpLoggingInterceptor } from '../interceptors/http-logging.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -21,7 +24,12 @@ import { TemplateService } from './services/template.service';
     WorkflowService,
     WorkflowExecutionService,
     WorkflowValidationService,
-    TemplateService
+    TemplateService,
+    ApiLoggerService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpLoggingInterceptor,
+    }
   ],
   exports: [WorkflowService],
 })
