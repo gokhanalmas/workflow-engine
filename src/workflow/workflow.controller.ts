@@ -142,6 +142,30 @@ export class WorkflowController {
     return this.workflowService.deleteWorkflowStep(id, stepName);
   }
 
+  @Put(':id')
+  @ApiOperation({ summary: 'Update a workflow' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Workflow updated successfully',
+    type: WorkflowEntity
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Workflow not found'
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid workflow data'
+  })
+  async updateWorkflow(
+      @Param('id') id: string,
+      @Body() updateDto: UpdateWorkflowDto
+  ): Promise<WorkflowEntity> {
+    console.log('Updating workflow with ID:', id);
+    console.log('Update DTO:', JSON.stringify(updateDto, null, 2));
+    return this.workflowService.updateWorkflow(id, updateDto);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Partially update a workflow' })
   @ApiResponse({
@@ -150,8 +174,8 @@ export class WorkflowController {
     type: WorkflowEntity
   })
   async patchWorkflow(
-    @Param('id') id: string,
-    @Body() updateDto: UpdateWorkflowDto
+      @Param('id') id: string,
+      @Body() updateDto: UpdateWorkflowDto
   ): Promise<WorkflowEntity> {
     return this.workflowService.patchWorkflow(id, updateDto);
   }

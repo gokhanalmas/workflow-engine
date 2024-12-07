@@ -149,6 +149,30 @@ export class WorkflowService {
     }
     await this.workflowRepository.remove(workflow);
   }
+
+  async updateWorkflow(id: string, updateDto: UpdateWorkflowDto): Promise<WorkflowEntity> {
+    const workflow = await this.findOne(id);
+
+    // Validate any new steps if they exist
+    if (updateDto.definition?.steps) {
+      this.validationService.validateWorkflowSteps(updateDto.definition.steps);
+    }
+
+    // Update workflow properties
+    const updatedWorkflow = {
+      ...workflow,
+      name: updateDto.name || workflow.name,
+      definition: updateDto.definition ? {
+        ...workflow.definition,
+        ...updateDto.definition,
+        // Ensure tenantId remains unchanged
+        tenantId: workflow.tenantId
+      } : workflow.definition
+    };
+
+    return this.workflowRepository.save(updatedWorkflow);
+  }
+
   constructor(
     private readonly executionService: WorkflowExecutionService,
     private readonly validationService: WorkflowValidationService,
