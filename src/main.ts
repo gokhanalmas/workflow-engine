@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import { CustomValidationPipe } from './pipes/custom-validation.pipe';
 
 async function bootstrap() {
     // Detaylı loglama için logger instance'ı oluştur
@@ -35,16 +36,9 @@ async function bootstrap() {
     });
     logger.log('CORS enabled for development server');
 
-    // Validation pipe with detailed errors in development
-    app.useGlobalPipes(new ValidationPipe({
-        transform: true,
-        enableDebugMessages: isDevelopment,
-        disableErrorMessages: !isDevelopment,
-        forbidUnknownValues: true,
-        forbidNonWhitelisted: true,
-        whitelist: true
-    }));
-    logger.log('Global validation pipe configured');
+    // Use custom validation pipe globally
+    app.useGlobalPipes(new CustomValidationPipe());
+    logger.log('Custom validation pipe configured');
 
     const config = new DocumentBuilder()
         .setTitle('Workflow Engine API')
