@@ -12,6 +12,8 @@ import { TemplateService } from './services/template.service';
 import { ApiLoggerService } from '../services/api-logger.service';
 import { HttpLoggingInterceptor } from '../interceptors/http-logging.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { PassageWorkflowProvider } from '../providers/passage/passage-workflow.provider';
+import { UserTransformService } from '../providers/passage/services/user-transform.service';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     WorkflowValidationService,
     TemplateService,
     ApiLoggerService,
+    PassageWorkflowProvider,
+    UserTransformService,
     {
       provide: APP_INTERCEPTOR,
       useClass: HttpLoggingInterceptor,
