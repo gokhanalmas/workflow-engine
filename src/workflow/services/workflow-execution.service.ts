@@ -145,12 +145,13 @@ export class WorkflowExecutionService {
             context.stepOutputs = {};
           }
 
+          context.stepOutputs[step.stepName] = {};
           for (const [key, path] of Object.entries(step.output)) {
             const value = this.templateService.extractValue(response.data, path);
-            context.stepOutputs[`${step.stepName}.${key}`] = value;
+            context.stepOutputs[step.stepName][key] = value;
           }
 
-          this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs);
+          this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs[step.stepName]);
         }
 
         return response.data;

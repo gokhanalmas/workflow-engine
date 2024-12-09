@@ -146,18 +146,10 @@ export class TemplateService {
     if (typeof template !== 'string') return template;
 
     return template.replace(/\{\{(.*?)\}\}/g, (match, path) => {
-      const normalizedPath = path.trim();
-      // Önce stepOutputs içinde tam path'i ara
-      const value = context.stepOutputs?.[normalizedPath];
-
+      const value = path.trim().split('.').reduce((obj, key) => obj?.[key], context);
       if (value === undefined) {
-        // Bulunamazsa normal context'te ara
-        const contextValue = normalizedPath.split('.').reduce((obj, key) => obj?.[key], context);
-        if (contextValue === undefined) {
-          this.logger.warn(`Template value not found for path: ${path}`);
-          return match;
-        }
-        return contextValue;
+        this.logger.warn(`Template value not found for path: ${path} in context:`, context);
+        return match;
       }
       return value;
     });
