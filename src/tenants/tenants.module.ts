@@ -5,11 +5,11 @@ import { TenantsController } from './tenants.controller';
 import { Tenant } from './entities/tenant.entity';
 import { ProviderConfig } from './entities/provider-config.entity';
 import { WorkflowModule } from '../workflow/workflow.module';
+import {WorkflowEntity} from "../workflow/entities/workflow.entity";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tenant, ProviderConfig]),
-    WorkflowModule
+    TypeOrmModule.forFeature([Tenant, ProviderConfig, WorkflowEntity]),
   ],
   providers: [TenantsService],
   controllers: [TenantsController],

@@ -7,16 +7,18 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { CreateProviderConfigDto } from './dto/create-provider-config.dto';
 import { PaginationDto, PageDto, PageMetaDto } from '../common/dto/pagination.dto';
+import {WorkflowEntity} from "../workflow/entities/workflow.entity";
 
 
 @Injectable()
 export class TenantsService {
-  private workflowRepository: any;
   constructor(
-    @InjectRepository(Tenant)
-    private tenantsRepository: Repository<Tenant>,
-    @InjectRepository(ProviderConfig)
-    private providerConfigsRepository: Repository<ProviderConfig>,
+      @InjectRepository(Tenant)
+      private tenantsRepository: Repository<Tenant>,
+      @InjectRepository(ProviderConfig)
+      private providerConfigsRepository: Repository<ProviderConfig>,
+      @InjectRepository(WorkflowEntity)
+      private workflowRepository: Repository<WorkflowEntity>
   ) {}
 
   async create(createTenantDto: CreateTenantDto): Promise<Tenant> {
