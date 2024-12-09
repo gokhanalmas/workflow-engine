@@ -111,7 +111,6 @@ export class WorkflowExecutionService {
   }
 
   async executeStep(step: WorkflowStep, context: any): Promise<any> {
-
     if (this.passageProvider.isPassageCreateUserStep(step)) {
       return this.passageProvider.executeCreateUserStep(step, context);
     }
@@ -121,48 +120,44 @@ export class WorkflowExecutionService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        // Create request configuration
         const requestConfig: any = {
           method: step.method,
           url: this.templateService.resolveTemplateString(step.url, context),
           headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
         };
 
-        // Handle request body for non-GET/HEAD requests
         if (!['GET', 'HEAD'].includes(step.method)) {
           let resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
-
-          // Passage API için transform işlemi - URL'de public/v1/users kontrolü
           if (resolvedBody && step.url.includes('public/v1/users')) {
             resolvedBody = this.templateService.transformToPassageUser(context.currentItem, step);
           }
-
           if (resolvedBody && Object.keys(resolvedBody).length > 0) {
             requestConfig.data = resolvedBody;
           }
         }
 
-        this.logger.debug(`Executing step ${step.stepName}:`, {
-          method: requestConfig.method,
-          url: requestConfig.url,
-          headers: requestConfig.headers,
-          body: requestConfig.data
-        });
+        this.logger.debug(`Executing step ${step.stepName}:`, requestConfig);
 
-        const response = await lastValueFrom(
-            this.httpService.request(requestConfig)
-        );
+        const response = await lastValueFrom(this.httpService.request(requestConfig));
 
-        // Diğer kodlar aynı kalacak...
+        if (step.output && response.data) {
+          if (!context.stepOutputs) {
+            context.stepOutputs = {};
+          }
+
+          for (const [key, path] of Object.entries(step.output)) {
+            const value = this.templateService.extractValue(response.data, path);
+            context.stepOutputs[`${step.stepName}.${key}`] = value;
+          }
+
+          this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs);
+        }
 
         return response.data;
+
       } catch (error) {
-        if (attempt === maxAttempts) {
-          throw error;
-        }
-        this.logger.warn(
-            `Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`
-        );
+        if (attempt === maxAttempts) throw error;
+        this.logger.warn(`Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`);
         await delay(delayMs);
       }
     }
