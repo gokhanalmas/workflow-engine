@@ -110,7 +110,7 @@ export class WorkflowExecutionService {
     }
   }
 
-  async executeStep(step: WorkflowStep, context: any): Promise<any> {
+  async executeStep(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
     if (this.passageProvider.isPassageCreateUserStep(step)) {
       return this.passageProvider.executeCreateUserStep(step, context);
     }
@@ -124,6 +124,7 @@ export class WorkflowExecutionService {
           method: step.method,
           url: this.templateService.resolveTemplateString(step.url, context),
           headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
+          timeout: options?.timeout || 50000,
         };
 
         if (!['GET', 'HEAD'].includes(step.method)) {
@@ -163,4 +164,5 @@ export class WorkflowExecutionService {
       }
     }
   }
+
 }

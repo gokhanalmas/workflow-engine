@@ -331,34 +331,55 @@ export class WorkflowService {
         });
         await this.stepLogRepository.save(stepLog);
 
-        try {
-          const stepStartTime = Date.now();
-          const result = await this.executionService.executeStep(step, context);
+        const retryConfig = step.retryConfig || { maxAttempts: 1, delayMs: 0 };
+        const stepTimeout = step.timeout || 50000;
 
-          // Başarıyla tamamlanan adımı logla
-          stepLog.status = ExecutionStatus.COMPLETED;
-          stepLog.completedAt = new Date();
-          stepLog.durationMs = Date.now() - stepStartTime;
-          stepLog.response = result;
-          await this.stepLogRepository.save(stepLog);
+        for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
+          try {
+            const stepStartTime = Date.now();
+            this.logger.log(`Executing step ${step.stepName}, attempt ${attempt}`);
 
-          stepResults[step.stepName] = result;
-          executedSteps.add(step.stepName);
-
-          // Eğer çıktı tanımlıysa context'e ekle
-          if (step.output) {
-            Object.entries(step.output).forEach(([key, jsonPath]) => {
-              context.stepOutputs[`${step.stepName}.${key}`] =
-                  this.templateService.extractValue(result, jsonPath);
+            const result = await this.executionService.executeStep(step, context, {
+              timeout: stepTimeout,
             });
+
+            // Başarıyla tamamlanan adımı logla
+            stepLog.status = ExecutionStatus.COMPLETED;
+            stepLog.completedAt = new Date();
+            stepLog.durationMs = Date.now() - stepStartTime;
+            stepLog.response = result;
+            await this.stepLogRepository.save(stepLog);
+
+            stepResults[step.stepName] = result;
+            executedSteps.add(step.stepName);
+
+            // Eğer çıktı tanımlıysa context'e ekle
+            if (step.output) {
+              Object.entries(step.output).forEach(([key, jsonPath]) => {
+                context.stepOutputs[`${step.stepName}.${key}`] =
+                    this.templateService.extractValue(result, jsonPath);
+              });
+            }
+
+            // Başarı durumunda döngüden çık
+            break;
+          } catch (error) {
+            this.logger.warn(
+                `Step ${step.stepName} failed on attempt ${attempt}: ${error.message}`,
+            );
+
+            if (attempt === retryConfig.maxAttempts) {
+              // Maksimum deneme yapıldı, hata fırlat
+              stepLog.status = ExecutionStatus.FAILED;
+              stepLog.completedAt = new Date();
+              stepLog.error = error.message;
+              await this.stepLogRepository.save(stepLog);
+              throw error;
+            }
+
+            // Retry öncesi bekleme
+            await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
           }
-        } catch (error) {
-          // Hata durumunda adımı logla
-          stepLog.status = ExecutionStatus.FAILED;
-          stepLog.completedAt = new Date();
-          stepLog.error = error.message;
-          await this.stepLogRepository.save(stepLog);
-          throw error;
         }
       }
 
@@ -385,9 +406,6 @@ export class WorkflowService {
     }
   }
 
-  /**
-   * Yeni metod: Başarısız olan bir yürütmeyi tekrar çalıştırır.
-   */
   async retryExecution(workflowId: string, executionId: string): Promise<WorkflowExecutionLog> {
     const workflow = await this.findOne(workflowId);
     const execution = await this.getExecution(workflowId, executionId);

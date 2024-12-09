@@ -6,9 +6,14 @@ import { WorkflowModule } from './workflow/workflow.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
+import {HttpModule} from "@nestjs/axios";
 
 @Module({
   imports: [
+    HttpModule.register({
+      timeout: 50000,
+      maxRedirects: 5,
+    }),
     ConfigModule.forRoot({
       load: [configuration],
       isGlobal: true,
