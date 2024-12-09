@@ -113,7 +113,7 @@ export class WorkflowService {
   async testStep(workflowId: string, stepName: string): Promise<any> {
     const workflow = await this.findOne(workflowId);
     const step = workflow.definition.steps.find(s => s.stepName === stepName);
-    
+
     if (!step) {
       throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
     }
@@ -131,6 +131,7 @@ export class WorkflowService {
       throw error;
     }
   }
+
 
   async patchWorkflow(id: string, updateDto: UpdateWorkflowDto): Promise<WorkflowEntity> {
     const workflow = await this.findOne(id);

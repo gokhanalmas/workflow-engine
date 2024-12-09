@@ -20,6 +20,7 @@ export interface WorkflowStep {
   output?: Record<string, string>;
   dependsOn?: string[];
   retryConfig?: RetryConfig;
+  timeout?: number;
 }
 
 export interface WorkflowDefinition {
