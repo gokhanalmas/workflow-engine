@@ -6,9 +6,12 @@ import { ProviderConfig } from './entities/provider-config.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { CreateProviderConfigDto } from './dto/create-provider-config.dto';
+import { PaginationDto, PageDto, PageMetaDto } from '../common/dto/pagination.dto';
+
 
 @Injectable()
 export class TenantsService {
+  private workflowRepository: any;
   constructor(
     @InjectRepository(Tenant)
     private tenantsRepository: Repository<Tenant>,
@@ -37,12 +40,36 @@ export class TenantsService {
     await this.tenantsRepository.remove(tenant);
   }
 
-  async findAll(): Promise<Tenant[]> {
-    return this.tenantsRepository.find({
-      relations: ['providerConfigs']
+  async findAll(paginationDto: PaginationDto): Promise<PageDto<Tenant>> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [tenants, total] = await this.tenantsRepository.findAndCount({
+      relations: ['providerConfigs'],
+      skip,
+      take: limit,
+      order: { createdAt: 'DESC' }
     });
+
+    const meta = new PageMetaDto(page, limit, total);
+    return new PageDto(tenants, meta);
   }
 
+  async getWorkflows(tenantId: string, paginationDto: PaginationDto): Promise<PageDto<any>> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const tenant = await this.findById(tenantId);
+    const [workflows, total] = await this.workflowRepository.findAndCount({
+      where: { tenantId },
+      skip,
+      take: limit,
+      order: { createdAt: 'DESC' }
+    });
+
+    const meta = new PageMetaDto(page, limit, total);
+    return new PageDto(workflows, meta);
+  }
   async findById(id: string): Promise<Tenant> {
     const tenant = await this.tenantsRepository.findOne({
       where: { id },

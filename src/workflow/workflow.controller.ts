@@ -1,4 +1,4 @@
-import { Controller, Post, Put, Patch, Delete, Body, Get, Param, HttpStatus } from '@nestjs/common';
+import {Controller, Post, Put, Patch, Delete, Body, Get, Param, HttpStatus, Query} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
@@ -9,6 +9,7 @@ import { UpdateWorkflowStepDto } from './dto/update-workflow-step.dto';
 import { WorkflowEntity } from './entities/workflow.entity';
 import { WorkflowExecutionLogDto } from "./dto/workflow-execution.dto";
 import { WorkflowExecutionLog } from "./entities/workflow-execution-log.entity";
+import {PageDto, PaginationDto} from "../common/dto/pagination.dto";
 
 @ApiTags('Workflows')
 @ApiBearerAuth()
@@ -30,12 +31,12 @@ export class WorkflowController {
   @Get()
   @ApiOperation({ summary: 'Get all workflows' })
   @ApiResponse({
-    status: HttpStatus.OK,
+    status: 200,
     description: 'List of all workflows',
-    type: [WorkflowEntity]
+    type: PageDto
   })
-  async getWorkflows(): Promise<WorkflowEntity[]> {
-    return this.workflowService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.workflowService.findAll(paginationDto);
   }
 
   @Get(':id')

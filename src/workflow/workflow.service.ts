@@ -11,6 +11,7 @@ import { TemplateService } from './services/template.service';
 import { WorkflowExecutionLog} from "./entities/workflow-execution-log.entity";
 import { ExecutionStatus } from '../enums/execution-status.enum';
 import {WorkflowStepLog} from "./entities/workflow-step-log.entity";
+import {PageDto, PageMetaDto, PaginationDto} from "../common/dto/pagination.dto";
 
 interface WorkflowExecutionResult {
   stepResults: Record<string, any>;
@@ -205,8 +206,18 @@ export class WorkflowService {
     return this.workflowRepository.save(workflow);
   }
 
-  async findAll(): Promise<WorkflowEntity[]> {
-    return this.workflowRepository.find();
+  async findAll(paginationDto: PaginationDto): Promise<PageDto<WorkflowEntity>> {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [workflows, total] = await this.workflowRepository.findAndCount({
+      skip,
+      take: limit,
+      order: { createdAt: 'DESC' }
+    });
+
+    const meta = new PageMetaDto(page, limit, total);
+    return new PageDto(workflows, meta);
   }
 
   async findByNameAndTenant(name: string, tenantId: string): Promise<WorkflowEntity> {

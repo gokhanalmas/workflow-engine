@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Delete, Patch } from '@nestjs/common';
+import {Controller, Get, Post, Body, Param, UseGuards, Delete, Patch, Query} from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { CreateProviderConfigDto } from './dto/create-provider-config.dto';
@@ -7,6 +7,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { Tenant } from './entities/tenant.entity';
 import { ProviderConfig } from './entities/provider-config.entity';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import {PageDto, PaginationDto} from "../common/dto/pagination.dto";
 
 @ApiTags('Tenants')
 @ApiBearerAuth('JWT-auth')
@@ -56,10 +57,24 @@ export class TenantsController {
   @ApiResponse({
     status: 200,
     description: 'List of all tenants',
-    type: [Tenant],
+    type: PageDto
   })
-  findAll() {
-    return this.tenantsService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.tenantsService.findAll(paginationDto);
+  }
+
+  @Get(':id/workflows')
+  @ApiOperation({ summary: 'Get tenant workflows' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of tenant workflows',
+    type: PageDto
+  })
+  getTenantWorkflows(
+      @Param('id') id: string,
+      @Query() paginationDto: PaginationDto
+  ) {
+    return this.tenantsService.getWorkflows(id, paginationDto);
   }
 
   @Get(':id')
