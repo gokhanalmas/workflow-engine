@@ -51,6 +51,7 @@ export interface WorkflowContext {
   tenantId: string;
   tenant?: any;
   currentItem?: any;
+  executionId: string;
 }
 
 export interface WorkflowResult {

@@ -304,9 +304,7 @@ export class WorkflowService {
 
     async executeWorkflow(workflowId: string): Promise<WorkflowExecutionLog> {
         const workflow = await this.findOne(workflowId);
-        if (!workflow.tenant) {
-            throw new Error(`Workflow ${workflowId} has no associated tenant`);
-        }
+
         // Yeni yürütme kaydı oluştur
         const executionLog = this.executionLogRepository.create({
             workflowId: workflow.id,
@@ -322,6 +320,7 @@ export class WorkflowService {
                 stepOutputs: {},
                 tenantId: workflow.tenantId,
                 tenant: workflow,
+                executionId: executionLog.id // Sadece bu satırı ekledik
             };
 
             const stepResults = {};
@@ -348,7 +347,7 @@ export class WorkflowService {
                 });
                 await this.stepLogRepository.save(stepLog);
 
-                const retryConfig = step.retryConfig || {maxAttempts: 1, delayMs: 0};
+                const retryConfig = step.retryConfig || { maxAttempts: 1, delayMs: 0 };
                 const stepTimeout = step.timeout || 50000;
 
                 for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
@@ -422,7 +421,6 @@ export class WorkflowService {
             throw error;
         }
     }
-
     async retryExecution(workflowId: string, executionId: string): Promise<WorkflowExecutionLog> {
         const workflow = await this.findOne(workflowId);
         const execution = await this.getExecution(workflowId, executionId);
