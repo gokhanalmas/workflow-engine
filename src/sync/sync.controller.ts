@@ -8,10 +8,7 @@ export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
   @Post('tenant/:tenantId')
-  async syncTenantUsers(
-    @Param('tenantId') tenantId: string,
-    @Param('passageToken') passageToken: string,
-  ) {
-    return this.syncService.syncTenantUsers(tenantId, passageToken);
+  async syncTenantUsers(@Param('tenantId') tenantId: string) {
+    return this.syncService.syncTenantUsers(tenantId);
   }
 }

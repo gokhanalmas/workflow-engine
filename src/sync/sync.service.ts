@@ -1,3 +1,4 @@
+// sync.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { TenantsService } from '../tenants/tenants.service';
 import { PassageService } from '../providers/passage/passage.service';
@@ -9,19 +10,19 @@ export class SyncService {
   private readonly logger = new Logger(SyncService.name);
 
   constructor(
-    private readonly tenantsService: TenantsService,
-    private readonly passageService: PassageService
+      private readonly tenantsService: TenantsService,
+      private readonly passageService: PassageService
   ) {}
 
-  async syncTenantUsers(tenantId: string, passageToken: string) {
+  async syncTenantUsers(tenantId: string): Promise<void> {
     try {
       const users = await this.tenantsService.getUsers(tenantId);
-      
+
       // Sync each user to Passage
       for (const user of users) {
-        await this.syncUserToPassage(user, passageToken);
+        await this.syncUserToPassage(user);
       }
-      
+
       this.logger.log(`Successfully synced ${users.length} users to Passage for tenant ${tenantId}`);
     } catch (error) {
       this.logger.error(`Error syncing users for tenant ${tenantId}:`, error);
@@ -29,7 +30,7 @@ export class SyncService {
     }
   }
 
-  private async syncUserToPassage(worker: any, passageToken: string) {
+  private async syncUserToPassage(worker: any): Promise<void> {
     const passageUser: CreatePassageUserDto = {
       user: {
         email: worker.email,
@@ -99,7 +100,7 @@ export class SyncService {
     };
 
     try {
-      await this.passageService.createUser(passageUser, passageToken);
+      await this.passageService.createUser(passageUser);
       this.logger.log(`Successfully synced user: ${worker.email}`);
     } catch (error) {
       this.logger.error(`Error syncing user ${worker.email}:`, error);

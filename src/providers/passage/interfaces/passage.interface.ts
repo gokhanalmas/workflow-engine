@@ -1,3 +1,4 @@
+// passage.interface.ts
 export interface IPassageUser {
   email: string;
   password: string;
@@ -66,4 +67,38 @@ export interface IPassageUser {
 
 export interface ICreatePassageUserRequest {
   user: IPassageUser;
+}
+
+export interface IUpdatePassageUserRequest {
+  user: Partial<IPassageUser>;
+}
+
+export interface IPassageResponse<T = any, U = any> {
+  success: boolean;
+  data?: T | U;
+  users?: T[];
+  total?: number;
+  page?: number;
+  per_page?: number;
+  error?: string;
+  message?: string;
+}
+
+export interface IPassageUserListResponse extends IPassageResponse<IPassageUser, { users: IPassageUser[], total: number, page: number, per_page: number }> {}
+export interface IPassageUserResponse extends IPassageResponse<IPassageUser> {}
+
+
+
+export enum PassageEndpoints {
+  USERS = '/api/public/v1/users',
+  USER_DETAIL = '/api/public/v1/users/:id'
+}
+
+export interface IPassageListParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  is_active?: boolean;
+  user_type?: string;
+  employee_type?: string;
 }

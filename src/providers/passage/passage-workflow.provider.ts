@@ -63,6 +63,8 @@ export class PassageWorkflowProvider extends BaseProviderService {
         return step.url.includes('/api/public/v1/');
     }
 
+
+
     isPassageCreateUserStep(step: WorkflowStep): boolean {
         return (
             step.url.includes('/api/public/v1/users') &&
@@ -71,6 +73,44 @@ export class PassageWorkflowProvider extends BaseProviderService {
         );
     }
 
+    isPassageUpdateUserStep(step: WorkflowStep): boolean {
+        return (
+            step.url.includes('/api/public/v1/users') &&
+            step.method === 'PUT' &&
+            step.body?.user
+        );
+    }
+
+    isPassagePatchUserStep(step: WorkflowStep): boolean {
+        return (
+            step.url.includes('/api/public/v1/users') &&
+            step.method === 'PATCH' &&
+            step.body?.user
+        );
+    }
+
+    isPassageDeleteUserStep(step: WorkflowStep): boolean {
+        return (
+            step.url.includes('/api/public/v1/users') &&
+            step.method === 'DELETE'
+        );
+    }
+
+    isPassageGetUserStep(step: WorkflowStep): boolean {
+        const isUserEndpoint = step.url.includes('/api/public/v1/users');
+        const isGetMethod = step.method === 'GET';
+        const urlMatch = step.url.match(/\/users\/[^\/]+$/);
+        const hasUserId = urlMatch !== null;
+        return isUserEndpoint && isGetMethod && hasUserId;
+    }
+
+
+    isPassageListUsersStep(step: WorkflowStep): boolean {
+        const isUserEndpoint = step.url.includes('/api/public/v1/users');
+        const isGetMethod = step.method === 'GET';
+        const isListEndpoint = !step.url.match(/\/users\/[^\/]+$/);
+        return isUserEndpoint && isGetMethod && isListEndpoint;
+    }
     async executeCreateUserStep(step: ExtendedWorkflowStep, context: any): Promise<any> {
         try {
             let resolvedBody = this.userTransformService.transformToPassageUser(
@@ -221,6 +261,12 @@ export class PassageWorkflowProvider extends BaseProviderService {
     }
 
     private async handlePassageGet(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        if (this.isPassageGetUserStep(step)) {
+            return this.handleGetUser(step, context);
+        } else if (this.isPassageListUsersStep(step)) {
+            return this.handleListUsers(step, context);
+        }
+
         const response = await this.makeRequest(
             'GET',
             step.url,
@@ -244,12 +290,109 @@ export class PassageWorkflowProvider extends BaseProviderService {
         return response.data;
     }
 
-    private async handlePassagePost(step: ExtendedWorkflowStep, context: any): Promise<any> {
-        let requestBody = step.body;
+    private async handleGetUser(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        const userId = this.extractUserIdFromUrl(step.url);
+        if (!userId) {
+            throw new PassageError('User ID is required', step.stepName, { url: step.url });
+        }
 
-        // User creation endpoint için özel transform
-        if (step.url.includes('/users')) {
-            requestBody = this.userTransformService.transformToPassageUser(
+        const response = await this.makeRequest(
+            'GET',
+            step.url,
+            null,
+            {
+                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
+                'Content-Type': 'application/json',
+                ...step.headers
+            }
+        );
+
+        if (!response.success) {
+            throw new PassageError(
+                `Failed to get user: ${response.error}`,
+                step.stepName,
+                { userId },
+                response
+            );
+        }
+
+        return response.data;
+    }
+
+    private async handleListUsers(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        // Query parametrelerini işle
+        const queryParams = new URLSearchParams();
+        if (step.body) {
+            Object.entries(step.body).forEach(([key, value]) => {
+                if (value !== undefined) {
+                    queryParams.append(key, String(value));
+                }
+            });
+        }
+
+        const url = `${step.url}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+        const response = await this.makeRequest(
+            'GET',
+            url,
+            null,
+            {
+                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
+                'Content-Type': 'application/json',
+                ...step.headers
+            }
+        );
+
+        if (!response.success) {
+            throw new PassageError(
+                `Failed to list users: ${response.error}`,
+                step.stepName,
+                { queryParams: step.body },
+                response
+            );
+        }
+
+        return response.data;
+    }
+
+    private async handlePassagePut(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        if (this.isPassageUpdateUserStep(step)) {
+            return this.handleUpdateUser(step, context);
+        }
+
+        const response = await this.makeRequest(
+            'PUT',
+            step.url,
+            step.body,
+            {
+                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
+                'Content-Type': 'application/json',
+                ...step.headers
+            }
+        );
+
+        if (!response.success) {
+            throw new PassageError(
+                `Passage PUT request failed: ${response.error}`,
+                step.stepName,
+                { endpoint: step.url },
+                response
+            );
+        }
+
+        return response.data;
+    }
+
+    private async handleUpdateUser(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        const userId = this.extractUserIdFromUrl(step.url);
+        if (!userId) {
+            throw new PassageError('User ID is required', step.stepName, { url: step.url });
+        }
+
+        // Transform user data if needed
+        let userData = step.body;
+        if (step.fieldMappings) {
+            userData = this.userTransformService.transformToPassageUser(
                 context.currentItem,
                 {
                     fieldMappings: step.fieldMappings,
@@ -260,6 +403,67 @@ export class PassageWorkflowProvider extends BaseProviderService {
                     customTransforms: step.customTransforms
                 }
             );
+        }
+
+        const response = await this.makeRequest(
+            'PUT',
+            step.url,
+            userData,
+            {
+                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
+                'Content-Type': 'application/json',
+                ...step.headers
+            }
+        );
+
+        if (!response.success) {
+            throw new PassageError(
+                `Failed to update user: ${response.error}`,
+                step.stepName,
+                { userId },
+                response
+            );
+        }
+
+        return response.data;
+    }
+
+    private async handlePatchUser(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        const userId = this.extractUserIdFromUrl(step.url);
+        if (!userId) {
+            throw new PassageError('User ID is required', step.stepName, { url: step.url });
+        }
+
+        // Sadece belirtilen alanları güncelle
+        const response = await this.makeRequest(
+            'PATCH',
+            step.url,
+            step.body,
+            {
+                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
+                'Content-Type': 'application/json',
+                ...step.headers
+            }
+        );
+
+        if (!response.success) {
+            throw new PassageError(
+                `Failed to patch user: ${response.error}`,
+                step.stepName,
+                { userId },
+                response
+            );
+        }
+
+        return response.data;
+    }
+
+    private async handlePassagePost(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        let requestBody = step.body;
+
+        // User creation endpoint için özel transform
+        if (this.isPassageCreateUserStep(step)) {
+            return this.executeCreateUserStep(step, context);
         }
 
         const response = await this.makeRequest(
@@ -284,32 +488,12 @@ export class PassageWorkflowProvider extends BaseProviderService {
 
         return response.data;
     }
-
-    private async handlePassagePut(step: ExtendedWorkflowStep, context: any): Promise<any> {
-        const response = await this.makeRequest(
-            'PUT',
-            step.url,
-            step.body,
-            {
-                'Authorization': `Bearer ${context.tenant.passageApiKey}`,
-                'Content-Type': 'application/json',
-                ...step.headers
-            }
-        );
-
-        if (!response.success) {
-            throw new PassageError(
-                `Passage PUT request failed: ${response.error}`,
-                step.stepName,
-                { endpoint: step.url },
-                response
-            );
+    private async handlePassageDelete(step: ExtendedWorkflowStep, context: any): Promise<any> {
+        const userId = this.extractUserIdFromUrl(step.url);
+        if (!userId) {
+            throw new PassageError('User ID is required', step.stepName, { url: step.url });
         }
 
-        return response.data;
-    }
-
-    private async handlePassageDelete(step: ExtendedWorkflowStep, context: any): Promise<any> {
         const response = await this.makeRequest(
             'DELETE',
             step.url,
@@ -323,13 +507,34 @@ export class PassageWorkflowProvider extends BaseProviderService {
 
         if (!response.success) {
             throw new PassageError(
-                `Passage DELETE request failed: ${response.error}`,
+                `Failed to delete user: ${response.error}`,
                 step.stepName,
-                { endpoint: step.url },
+                { userId },
                 response
             );
         }
 
         return response.data;
     }
+
+    private extractUserIdFromUrl(url: string): string | null {
+        const match = url.match(/\/users\/([^\/]+)$/);
+        return match ? match[1] : null;
+    }
+
+    private buildQueryString(params: Record<string, any>): string {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined) {
+                if (key.startsWith('q[')) {
+                    // Rancan query params için özel işlem
+                    query.append(key, String(value));
+                } else {
+                    query.append(key, String(value));
+                }
+            }
+        });
+        return query.toString() ? `?${query.toString()}` : '';
+    }
+
 }
