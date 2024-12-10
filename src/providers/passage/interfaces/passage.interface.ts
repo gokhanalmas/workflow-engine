@@ -5,7 +5,7 @@ export interface IPassageUser {
   gsm: string;
   first_name: string;
   last_name: string;
-  job_position_id: string | null;
+  job_position_id?: string | null;
   activation_date: string;
   citizenship_number: string;
   department_id: string | null;

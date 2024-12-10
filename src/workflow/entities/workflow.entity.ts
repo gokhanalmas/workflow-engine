@@ -1,5 +1,3 @@
-// src/workflow/entities/workflow.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -29,7 +27,7 @@ export class WorkflowEntity {
   @Column({ name: 'tenant_id' })
   tenantId: string;
 
-  @ManyToOne(() => Tenant, tenant => tenant.workflows)
+  @ManyToOne(() => Tenant, tenant => tenant.workflows, { eager: true }) // Eager loading ekle
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 

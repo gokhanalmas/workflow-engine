@@ -7,17 +7,47 @@ export class UserTransformService {
     private readonly logger = new Logger(UserTransformService.name);
 
     transformToPassageUser(sourceData: any, transformRules?: Record<string, any>): ICreatePassageUserRequest {
-        const baseFields = this.getBaseUserFields(sourceData);
-        const requiredFields = this.getRequiredPassageFields(sourceData);
-        const customFields = this.applyTransformRules(sourceData, transformRules);
+        if (!sourceData) {
+            throw new Error('Source data is required for user transformation');
+        }
 
-        const userFields: IPassageUser = {
-            ...baseFields,
-            ...requiredFields,
-            ...customFields
-        };
+        // Validate required fields
+        const requiredFields = ['email', 'firstName', 'lastName'];
+        const missingFields = requiredFields.filter(field => !sourceData[field]);
 
-        return { user: userFields };
+        if (missingFields.length > 0) {
+            throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+        }
+
+        try {
+            const baseFields = this.getBaseUserFields(sourceData);
+            const requiredFields = this.getRequiredPassageFields(sourceData);
+            const customFields = this.applyTransformRules(sourceData, transformRules);
+
+            const userFields: IPassageUser = {
+                ...baseFields,
+                ...requiredFields,
+                ...customFields
+            };
+
+            this.logger.debug('Transformed user fields:', {
+                email: userFields.email,
+                firstName: userFields.first_name,
+                lastName: userFields.last_name
+            });
+
+            return { user: userFields };
+        } catch (error) {
+            this.logger.error('Error transforming user data:', {
+                error: error.message,
+                sourceData: {
+                    hasEmail: !!sourceData.email,
+                    hasFirstName: !!sourceData.firstName,
+                    hasLastName: !!sourceData.lastName
+                }
+            });
+            throw error;
+        }
     }
 
     private getBaseUserFields(sourceData: any) {
@@ -41,7 +71,7 @@ export class UserTransformService {
             activation_date: this.formatDate(sourceData.employementStart),
             citizenship_number: '',
             department_id: null,
-            username: this.createUsername(sourceData.firstName, sourceData.lastName),
+            username: sourceData.username || null,
             gender: '',
             birth_date: sourceData.birthday ? format(new Date(sourceData.birthday), 'yyyy-MM-dd') : '',
             branch_id: null,
@@ -138,13 +168,6 @@ export class UserTransformService {
             this.logger.warn(`Error formatting date: ${dateStr}`);
             return '';
         }
-    }
-
-    private createUsername(firstName: string, lastName: string): string {
-        return `${firstName.toLowerCase()}.${lastName.toLowerCase()}`
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z.]/g, '');
     }
 
     private getNestedValue(obj: any, path: string): any {
