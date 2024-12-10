@@ -32,10 +32,14 @@ export interface WorkflowStep {
   dependsOn?: string[];
   retryConfig?: RetryConfig;
   timeout?: number;
-  validation?: ValidationConfig;
-  iterateOver?: string;
+  iterateOver?: string;  // Path to array data for iteration (e.g., 'stepOutputs.GetUsers.users')
+  transform?: {
+    if?: string;
+    then?: Record<string, any>;
+  };
+  fieldMappings?: Record<string, string>;
+  customTransforms?: Array<(data: any) => Record<string, any>>;
 }
-
 export interface WorkflowDefinition {
   workflowName: string;
   tenantId: string;

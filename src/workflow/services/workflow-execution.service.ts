@@ -1,213 +1,214 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { lastValueFrom } from 'rxjs';
-import { WorkflowStep } from '../interfaces/workflow.interface';
-import { delay } from '../../utils/promise.utils';
-import { TemplateService } from './template.service';
-import { PassageWorkflowProvider } from "../../providers/passage/passage-workflow.provider";
+import {Injectable, Logger} from '@nestjs/common';
+import {HttpService} from '@nestjs/axios';
+import {lastValueFrom} from 'rxjs';
+import {WorkflowStep} from '../interfaces/workflow.interface';
+import {delay} from '../../utils/promise.utils';
+import {TemplateService} from './template.service';
+import {PassageWorkflowProvider} from "../../providers/passage/passage-workflow.provider";
 
 type StringRecord = Record<string, string>;
 
 interface StepTestResponse {
-  status: number;
-  statusText: string;
-  headers: StringRecord;
-  data: any;
-  error?: string;
-  request: {
-    method: string;
-    url: string;
+    status: number;
+    statusText: string;
     headers: StringRecord;
-    body: any;
-  };
+    data: any;
+    error?: string;
+    request: {
+        method: string;
+        url: string;
+        headers: StringRecord;
+        body: any;
+    };
 }
 
 @Injectable()
 export class WorkflowExecutionService {
-  private readonly logger = new Logger(WorkflowExecutionService.name);
-  private readonly templateService = new TemplateService();
+    private readonly logger = new Logger(WorkflowExecutionService.name);
+    private readonly templateService = new TemplateService();
 
-  constructor(
-      private readonly httpService: HttpService,
-      private readonly passageProvider: PassageWorkflowProvider
-  ) {}
-
-  private getIterationData(step: WorkflowStep, context: any): any[] {
-    if (!step.iterateOver) return [null];
-
-    const path = step.iterateOver.split('.');
-    let data = context;
-
-    for (const key of path) {
-      if (!data || !data[key]) {
-        this.logger.warn(`Iteration data not found at path: ${step.iterateOver}`);
-        return [];
-      }
-      data = data[key];
+    constructor(
+        private readonly httpService: HttpService,
+        private readonly passageProvider: PassageWorkflowProvider
+    ) {
     }
 
-    if (!Array.isArray(data)) {
-      this.logger.warn(`Iteration data at path ${step.iterateOver} is not an array`);
-      return [];
-    }
+    private getIterationData(step: WorkflowStep, context: any): any[] {
+        if (!step.iterateOver) return [null];
 
-    return data;
-  }
+        const path = step.iterateOver.split('.');
+        let data = context;
 
-  async testStep(step: WorkflowStep, context: any): Promise<StepTestResponse> {
-    // Create request configuration outside try block for access in catch
-    const requestConfig: any = {
-      method: step.method,
-      url: this.templateService.resolveTemplateString(step.url, context),
-      headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
-    };
-
-    // Only add body for non-GET/HEAD requests
-    if (!['GET', 'HEAD'].includes(step.method)) {
-      const resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
-      if (resolvedBody && Object.keys(resolvedBody).length > 0) {
-        requestConfig.data = resolvedBody;
-      }
-    }
-
-    try {
-      this.logger.debug(`Testing step ${step.stepName}:`, {
-        method: requestConfig.method,
-        url: requestConfig.url,
-        headers: requestConfig.headers
-      });
-
-      const response = await lastValueFrom(
-          this.httpService.request(requestConfig)
-      );
-
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.entries(response.headers).reduce((acc, [key, value]) => {
-          acc[key] = String(value);
-          return acc;
-        }, {} as StringRecord),
-        data: response.data,
-        request: {
-          method: step.method,
-          url: requestConfig.url,
-          headers: requestConfig.headers,
-          body: requestConfig.data
+        for (const key of path) {
+            if (!data || !data[key]) {
+                this.logger.warn(`Iteration data not found at path: ${step.iterateOver}`);
+                return [];
+            }
+            data = data[key];
         }
-      };
-    } catch (error) {
-      if (error.response) {
-        return {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          headers: Object.entries(error.response.headers || {}).reduce((acc, [key, value]) => {
-            acc[key] = String(value);
-            return acc;
-          }, {} as StringRecord),
-          data: error.response.data,
-          error: error.message,
-          request: {
-            method: step.method,
-            url: requestConfig.url,
-            headers: requestConfig.headers,
-            body: requestConfig.data
-          }
-        };
-      }
 
-      return {
-        status: 0,
-        statusText: 'Error',
-        headers: {},
-        data: null,
-        error: error.message,
-        request: {
-          method: step.method,
-          url: requestConfig.url,
-          headers: requestConfig.headers,
-          body: requestConfig.data
+        if (!Array.isArray(data)) {
+            this.logger.warn(`Iteration data at path ${step.iterateOver} is not an array`);
+            return [];
         }
-      };
-    }
-  }
 
-  async executeStep(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
-    // Handle iteration if specified
-    if (step.iterateOver) {
-      const iterationData = this.getIterationData(step, context);
-      const results = [];
-
-      for (const item of iterationData) {
-        const iterationContext = {
-          ...context,
-          currentItem: item
-        };
-
-        // Execute the step for each item
-        const result = await this.executeStepInternal(step, iterationContext, options);
-        results.push(result);
-      }
-
-      return results;
+        return data;
     }
 
-    // If no iteration, execute normally
-    return this.executeStepInternal(step, context, options);
-  }
-
-  private async executeStepInternal(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
-    if (this.passageProvider.isPassageCreateUserStep(step)) {
-      return this.passageProvider.executeCreateUserStep(step, context);
-    }
-
-    const maxAttempts = step.retryConfig?.maxAttempts || 1;
-    const delayMs = step.retryConfig?.delayMs || 1000;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
+    async testStep(step: WorkflowStep, context: any): Promise<StepTestResponse> {
+        // Create request configuration outside try block for access in catch
         const requestConfig: any = {
-          method: step.method,
-          url: this.templateService.resolveTemplateString(step.url, context),
-          headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
-          timeout: options?.timeout || 50000,
+            method: step.method,
+            url: this.templateService.resolveTemplateString(step.url, context),
+            headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
         };
 
+        // Only add body for non-GET/HEAD requests
         if (!['GET', 'HEAD'].includes(step.method)) {
-          let resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
-          if (resolvedBody && step.url.includes('public/v1/users')) {
-            resolvedBody = this.templateService.transformToPassageUser(context.currentItem, step);
-          }
-          if (resolvedBody && Object.keys(resolvedBody).length > 0) {
-            requestConfig.data = resolvedBody;
-          }
+            const resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
+            if (resolvedBody && Object.keys(resolvedBody).length > 0) {
+                requestConfig.data = resolvedBody;
+            }
         }
 
-        this.logger.debug(`Executing step ${step.stepName}:`, requestConfig);
+        try {
+            this.logger.debug(`Testing step ${step.stepName}:`, {
+                method: requestConfig.method,
+                url: requestConfig.url,
+                headers: requestConfig.headers
+            });
 
-        const response = await lastValueFrom(this.httpService.request(requestConfig));
+            const response = await lastValueFrom(
+                this.httpService.request(requestConfig)
+            );
 
-        if (step.output && response.data) {
-          if (!context.stepOutputs) {
-            context.stepOutputs = {};
-          }
+            return {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.entries(response.headers).reduce((acc, [key, value]) => {
+                    acc[key] = String(value);
+                    return acc;
+                }, {} as StringRecord),
+                data: response.data,
+                request: {
+                    method: step.method,
+                    url: requestConfig.url,
+                    headers: requestConfig.headers,
+                    body: requestConfig.data
+                }
+            };
+        } catch (error) {
+            if (error.response) {
+                return {
+                    status: error.response.status,
+                    statusText: error.response.statusText,
+                    headers: Object.entries(error.response.headers || {}).reduce((acc, [key, value]) => {
+                        acc[key] = String(value);
+                        return acc;
+                    }, {} as StringRecord),
+                    data: error.response.data,
+                    error: error.message,
+                    request: {
+                        method: step.method,
+                        url: requestConfig.url,
+                        headers: requestConfig.headers,
+                        body: requestConfig.data
+                    }
+                };
+            }
 
-          context.stepOutputs[step.stepName] = {};
-          for (const [key, path] of Object.entries(step.output)) {
-            const value = this.templateService.extractValue(response.data, path);
-            context.stepOutputs[step.stepName][key] = value;
-          }
-
-          this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs[step.stepName]);
+            return {
+                status: 0,
+                statusText: 'Error',
+                headers: {},
+                data: null,
+                error: error.message,
+                request: {
+                    method: step.method,
+                    url: requestConfig.url,
+                    headers: requestConfig.headers,
+                    body: requestConfig.data
+                }
+            };
         }
-
-        return response.data;
-
-      } catch (error) {
-        if (attempt === maxAttempts) throw error;
-        this.logger.warn(`Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`);
-        await delay(delayMs);
-      }
     }
-  }
+
+    async executeStep(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
+        // Handle iteration if specified
+        if (step.iterateOver) {
+            const iterationData = this.getIterationData(step, context);
+            const results = [];
+
+            for (const item of iterationData) {
+                const iterationContext = {
+                    ...context,
+                    currentItem: item
+                };
+
+                // Execute the step for each item
+                const result = await this.executeStepInternal(step, iterationContext, options);
+                results.push(result);
+            }
+
+            return results;
+        }
+
+        // If no iteration, execute normally
+        return this.executeStepInternal(step, context, options);
+    }
+
+    private async executeStepInternal(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
+        if (this.passageProvider.isPassageCreateUserStep(step)) {
+            return this.passageProvider.executeCreateUserStep(step, context);
+        }
+
+        const maxAttempts = step.retryConfig?.maxAttempts || 1;
+        const delayMs = step.retryConfig?.delayMs || 1000;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const requestConfig: any = {
+                    method: step.method,
+                    url: this.templateService.resolveTemplateString(step.url, context),
+                    headers: this.templateService.resolveTemplateValues(step.headers || {}, context),
+                    timeout: options?.timeout || 50000,
+                };
+
+                if (!['GET', 'HEAD'].includes(step.method)) {
+                    let resolvedBody = step.body ? this.templateService.resolveTemplateValues(step.body, context) : undefined;
+                    if (resolvedBody && step.url.includes('public/v1/users')) {
+                        resolvedBody = this.templateService.transformToPassageUser(context.currentItem, step);
+                    }
+                    if (resolvedBody && Object.keys(resolvedBody).length > 0) {
+                        requestConfig.data = resolvedBody;
+                    }
+                }
+
+                this.logger.debug(`Executing step ${step.stepName}:`, requestConfig);
+
+                const response = await lastValueFrom(this.httpService.request(requestConfig));
+
+                if (step.output && response.data) {
+                    if (!context.stepOutputs) {
+                        context.stepOutputs = {};
+                    }
+
+                    context.stepOutputs[step.stepName] = {};
+                    for (const [key, path] of Object.entries(step.output)) {
+                        const value = this.templateService.extractValue(response.data, path);
+                        context.stepOutputs[step.stepName][key] = value;
+                    }
+
+                    this.logger.debug(`Step ${step.stepName} outputs:`, context.stepOutputs[step.stepName]);
+                }
+
+                return response.data;
+
+            } catch (error) {
+                if (attempt === maxAttempts) throw error;
+                this.logger.warn(`Step ${step.stepName} failed on attempt ${attempt}/${maxAttempts}, retrying after ${delayMs}ms`);
+                await delay(delayMs);
+            }
+        }
+    }
 }
