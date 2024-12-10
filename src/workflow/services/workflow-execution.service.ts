@@ -4,7 +4,7 @@ import { lastValueFrom } from 'rxjs';
 import { WorkflowStep } from '../interfaces/workflow.interface';
 import { delay } from '../../utils/promise.utils';
 import { TemplateService } from './template.service';
-import {PassageWorkflowProvider} from "../../providers/passage/passage-workflow.provider";
+import { PassageWorkflowProvider } from "../../providers/passage/passage-workflow.provider";
 
 type StringRecord = Record<string, string>;
 
@@ -31,6 +31,28 @@ export class WorkflowExecutionService {
       private readonly httpService: HttpService,
       private readonly passageProvider: PassageWorkflowProvider
   ) {}
+
+  private getIterationData(step: WorkflowStep, context: any): any[] {
+    if (!step.iterateOver) return [null];
+
+    const path = step.iterateOver.split('.');
+    let data = context;
+
+    for (const key of path) {
+      if (!data || !data[key]) {
+        this.logger.warn(`Iteration data not found at path: ${step.iterateOver}`);
+        return [];
+      }
+      data = data[key];
+    }
+
+    if (!Array.isArray(data)) {
+      this.logger.warn(`Iteration data at path ${step.iterateOver} is not an array`);
+      return [];
+    }
+
+    return data;
+  }
 
   async testStep(step: WorkflowStep, context: any): Promise<StepTestResponse> {
     // Create request configuration outside try block for access in catch
@@ -111,6 +133,30 @@ export class WorkflowExecutionService {
   }
 
   async executeStep(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
+    // Handle iteration if specified
+    if (step.iterateOver) {
+      const iterationData = this.getIterationData(step, context);
+      const results = [];
+
+      for (const item of iterationData) {
+        const iterationContext = {
+          ...context,
+          currentItem: item
+        };
+
+        // Execute the step for each item
+        const result = await this.executeStepInternal(step, iterationContext, options);
+        results.push(result);
+      }
+
+      return results;
+    }
+
+    // If no iteration, execute normally
+    return this.executeStepInternal(step, context, options);
+  }
+
+  private async executeStepInternal(step: WorkflowStep, context: any, options?: { timeout?: number }): Promise<any> {
     if (this.passageProvider.isPassageCreateUserStep(step)) {
       return this.passageProvider.executeCreateUserStep(step, context);
     }
@@ -164,5 +210,4 @@ export class WorkflowExecutionService {
       }
     }
   }
-
 }

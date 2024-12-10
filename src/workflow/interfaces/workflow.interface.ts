@@ -1,3 +1,5 @@
+// workflow.interface.ts
+
 export enum HttpMethod {
   GET = 'GET',
   POST = 'POST',
@@ -6,9 +8,18 @@ export enum HttpMethod {
   PATCH = 'PATCH'
 }
 
+export interface ValidationConfig {
+  conditions: string[];
+}
+
+export interface RetryStepConfig {
+  retryStep: string;
+}
+
 export interface RetryConfig {
   maxAttempts: number;
   delayMs: number;
+  onRetry?: RetryStepConfig;
 }
 
 export interface WorkflowStep {
@@ -21,6 +32,8 @@ export interface WorkflowStep {
   dependsOn?: string[];
   retryConfig?: RetryConfig;
   timeout?: number;
+  validation?: ValidationConfig;
+  iterateOver?: string;
 }
 
 export interface WorkflowDefinition {
@@ -33,6 +46,7 @@ export interface WorkflowContext {
   stepOutputs: Record<string, any>;
   tenantId: string;
   tenant?: any;
+  currentItem?: any;
 }
 
 export interface WorkflowResult {

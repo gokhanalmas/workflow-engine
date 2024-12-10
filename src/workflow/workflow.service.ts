@@ -37,7 +37,7 @@ export class WorkflowService {
   async updateWorkflowStep(workflowId: string, stepName: string, updateDto: UpdateWorkflowStepDto): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
     const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
-    
+
     if (stepIndex === -1) {
       throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
     }
@@ -57,7 +57,7 @@ export class WorkflowService {
   async patchWorkflowStep(workflowId: string, stepName: string, updateDto: Partial<UpdateWorkflowStepDto>): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
     const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
-    
+
     if (stepIndex === -1) {
       throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
     }
@@ -80,7 +80,7 @@ export class WorkflowService {
   async deleteWorkflowStep(workflowId: string, stepName: string): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
     const stepIndex = workflow.definition.steps.findIndex(s => s.stepName === stepName);
-    
+
     if (stepIndex === -1) {
       throw new Error(`Step ${stepName} not found in workflow ${workflowId}`);
     }
@@ -100,7 +100,7 @@ export class WorkflowService {
 
   async addWorkflowStep(workflowId: string, newStep: UpdateWorkflowStepDto): Promise<WorkflowEntity> {
     const workflow = await this.findOne(workflowId);
-    
+
     // Validate the new step
     this.validationService.validateWorkflowSteps([newStep]);
 
@@ -135,19 +135,19 @@ export class WorkflowService {
 
   async patchWorkflow(id: string, updateDto: UpdateWorkflowDto): Promise<WorkflowEntity> {
     const workflow = await this.findOne(id);
-    
+
     // Update basic properties if provided
     if (updateDto.name) {
       workflow.name = updateDto.name;
     }
-    
+
     // Update definition if provided
     if (updateDto.definition) {
       // Validate any new steps
       if (updateDto.definition.steps) {
         this.validationService.validateWorkflowSteps(updateDto.definition.steps);
       }
-      
+
       workflow.definition = {
         ...workflow.definition,
         ...updateDto.definition,
@@ -155,7 +155,7 @@ export class WorkflowService {
         tenantId: workflow.tenantId
       };
     }
-    
+
     return this.workflowRepository.save(workflow);
   }
 
@@ -223,7 +223,7 @@ export class WorkflowService {
 
   async findByNameAndTenant(name: string, tenantId: string): Promise<WorkflowEntity> {
     const workflow = await this.workflowRepository.findOne({
-      where: { 
+      where: {
         name,
         tenantId
       }
@@ -237,15 +237,29 @@ export class WorkflowService {
   }
 
   async findOne(id: string): Promise<WorkflowEntity> {
-    const workflow = await this.workflowRepository.findOne({
-      where: { id }
-    });
-
+    const workflow = await this.workflowRepository
+        .createQueryBuilder('workflow')
+        .leftJoinAndSelect('workflow.tenant', 'tenant')
+        .where('workflow.id = :id', { id })
+        .getOne();
 
     if (!workflow) {
-      throw new Error(`Workflow with ID ${id} not found`);
+      throw new NotFoundException(`Workflow with ID ${id} not found`);
     }
 
+    if (!workflow.tenant) {
+      throw new Error(`Workflow ${id} has no associated tenant`);
+    }
+
+    if (!workflow.tenant.passageApiKey) {
+      throw new Error(`Passage API key not configured for tenant ${workflow.tenantId}`);
+    }
+
+    this.logger.debug('Found workflow with tenant:', {
+      workflowId: id,
+      tenantId: workflow.tenantId,
+      hasPassageApiKey: !!workflow.tenant.passageApiKey
+    });
 
     return workflow;
   }
@@ -289,7 +303,9 @@ export class WorkflowService {
 
   async executeWorkflow(workflowId: string): Promise<WorkflowExecutionLog> {
     const workflow = await this.findOne(workflowId);
-
+    if (!workflow.tenant) {
+      throw new Error(`Workflow ${workflowId} has no associated tenant`);
+    }
     // Yeni yürütme kaydı oluştur
     const executionLog = this.executionLogRepository.create({
       workflowId: workflow.id,
