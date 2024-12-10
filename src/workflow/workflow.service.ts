@@ -316,11 +316,11 @@ export class WorkflowService {
 
         try {
             const startTime = Date.now();
-            const context = {
+            const baseContext = {
                 stepOutputs: {},
                 tenantId: workflow.tenantId,
                 tenant: workflow,
-                executionId: executionLog.id // Sadece bu satırı ekledik
+                executionId: executionLog.id
             };
 
             const stepResults = {};
@@ -339,64 +339,105 @@ export class WorkflowService {
                     }
                 }
 
-                // Adım logu oluştur
-                const stepLog = this.stepLogRepository.create({
-                    executionId: executionLog.id,
-                    stepName: step.stepName,
-                    status: ExecutionStatus.RUNNING,
-                });
-                await this.stepLogRepository.save(stepLog);
+                // İterasyon verisini kontrol et
+                const iterationData = step.iterateOver ?
+                    this.templateService.extractValue(baseContext.stepOutputs, step.iterateOver) :
+                    [undefined];
 
-                const retryConfig = step.retryConfig || { maxAttempts: 1, delayMs: 0 };
-                const stepTimeout = step.timeout || 50000;
+                for (const item of Array.isArray(iterationData) ? iterationData : [iterationData]) {
+                    // Her iterasyon için context'i güncelle
+                    const context = {
+                        ...baseContext,
+                        currentItem: item
+                    };
 
-                for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
-                    try {
-                        const stepStartTime = Date.now();
-                        this.logger.log(`Executing step ${step.stepName}, attempt ${attempt}`);
+                    // Request body'yi hazırla
+                    let resolvedBody = step.body;
+                    if (step.url.includes('/users') && step.method === 'POST') {
+                        resolvedBody = this.templateService.transformToPassageUser(context.currentItem, step);
+                    } else if (step.body) {
+                        resolvedBody = this.templateService.resolveTemplateValues(step.body, context);
+                    }
 
-                        const result = await this.executionService.executeStep(step, context, {
-                            timeout: stepTimeout,
-                        });
+                    // Request headers'ı hazırla
+                    const resolvedHeaders = this.templateService.resolveTemplateValues(step.headers || {}, context);
 
-                        // Başarıyla tamamlanan adımı logla
-                        stepLog.status = ExecutionStatus.COMPLETED;
-                        stepLog.completedAt = new Date();
-                        stepLog.durationMs = Date.now() - stepStartTime;
-                        stepLog.response = result;
-                        await this.stepLogRepository.save(stepLog);
+                    // Adım logu oluştur
+                    const stepLog = this.stepLogRepository.create({
+                        executionId: executionLog.id,
+                        stepName: step.stepName,
+                        status: ExecutionStatus.RUNNING,
+                        request: {
+                            method: step.method,
+                            url: this.templateService.resolveTemplateString(step.url, context),
+                            headers: resolvedHeaders,
+                            body: resolvedBody
+                        }
+                    });
+                    await this.stepLogRepository.save(stepLog);
 
-                        stepResults[step.stepName] = result;
-                        executedSteps.add(step.stepName);
+                    const retryConfig = step.retryConfig || { maxAttempts: 1, delayMs: 0 };
+                    const stepTimeout = step.timeout || 50000;
 
-                        // Eğer çıktı tanımlıysa context'e ekle
-                        if (step.output) {
-                            Object.entries(step.output).forEach(([key, jsonPath]) => {
-                                context.stepOutputs[`${step.stepName}.${key}`] =
-                                    this.templateService.extractValue(result, jsonPath);
+                    for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
+                        try {
+                            const stepStartTime = Date.now();
+                            this.logger.log(`Executing step ${step.stepName}, attempt ${attempt}`);
+
+                            const result = await this.executionService.executeStep(step, context, {
+                                timeout: stepTimeout,
                             });
-                        }
 
-                        // Başarı durumunda döngüden çık
-                        break;
-                    } catch (error) {
-                        this.logger.warn(
-                            `Step ${step.stepName} failed on attempt ${attempt}: ${error.message}`,
-                        );
-
-                        if (attempt === retryConfig.maxAttempts) {
-                            // Maksimum deneme yapıldı, hata fırlat
-                            stepLog.status = ExecutionStatus.FAILED;
+                            // Başarıyla tamamlanan adımı logla
+                            stepLog.status = ExecutionStatus.COMPLETED;
                             stepLog.completedAt = new Date();
-                            stepLog.error = error.message;
+                            stepLog.durationMs = Date.now() - stepStartTime;
+                            stepLog.response = result;
                             await this.stepLogRepository.save(stepLog);
-                            throw error;
-                        }
 
-                        // Retry öncesi bekleme
-                        await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
+                            if (Array.isArray(stepResults[step.stepName])) {
+                                stepResults[step.stepName].push(result);
+                            } else {
+                                stepResults[step.stepName] = step.iterateOver ? [result] : result;
+                            }
+
+                            // Eğer çıktı tanımlıysa context'e ekle
+                            if (step.output) {
+                                Object.entries(step.output).forEach(([key, jsonPath]) => {
+                                    const outputValue = this.templateService.extractValue(result, jsonPath);
+                                    if (step.iterateOver) {
+                                        baseContext.stepOutputs[`${step.stepName}.${key}`] =
+                                            baseContext.stepOutputs[`${step.stepName}.${key}`] || [];
+                                        baseContext.stepOutputs[`${step.stepName}.${key}`].push(outputValue);
+                                    } else {
+                                        baseContext.stepOutputs[`${step.stepName}.${key}`] = outputValue;
+                                    }
+                                });
+                            }
+
+                            // Başarı durumunda döngüden çık
+                            break;
+                        } catch (error) {
+                            this.logger.warn(
+                                `Step ${step.stepName} failed on attempt ${attempt}: ${error.message}`,
+                            );
+
+                            if (attempt === retryConfig.maxAttempts) {
+                                // Maksimum deneme yapıldı, hata fırlat
+                                stepLog.status = ExecutionStatus.FAILED;
+                                stepLog.completedAt = new Date();
+                                stepLog.error = error.message;
+                                await this.stepLogRepository.save(stepLog);
+                                throw error;
+                            }
+
+                            // Retry öncesi bekleme
+                            await new Promise((resolve) => setTimeout(resolve, retryConfig.delayMs));
+                        }
                     }
                 }
+
+                executedSteps.add(step.stepName);
             }
 
             // Başarılı yürütme logunu güncelle

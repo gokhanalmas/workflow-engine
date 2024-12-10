@@ -40,6 +40,7 @@ export interface WorkflowStep {
   fieldMappings?: Record<string, string>;
   customTransforms?: Array<(data: any) => Record<string, any>>;
 }
+
 export interface WorkflowDefinition {
   workflowName: string;
   tenantId: string;
